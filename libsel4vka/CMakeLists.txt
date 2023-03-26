@@ -17,6 +17,16 @@ config_option(LibVKAAllowMemoryLeaks LIB_VKA_ALLOW_MEMORY_LEAKS "Leak memory on 
     resources, but you want to use an allocator that does not \
     implement free." DEFAULT OFF)
 
+config_option(
+    LibVKAAllowMemoryPool
+    LAMP
+    "Memory pool (pre-allocated objects) enable libsel4vbtalloc to \
+    perform frame object pre-allocation, which is beneficial to \
+    the implementation of buddy system on top of seL4 micro-kernel."
+    DEFAULT
+    OFF
+)
+
 config_string(
     LibVKADebugLiveSlotsSZ
     LIB_SEL4_VKA_DEBUG_LIVE_SLOTS_SZ

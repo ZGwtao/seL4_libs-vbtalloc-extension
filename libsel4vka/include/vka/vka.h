@@ -87,6 +87,28 @@ typedef int (*vka_utspace_alloc_at_fn)(void *data, const cspacepath_t *dest, seL
 typedef int (*vka_utspace_alloc_maybe_device_fn)(void *data, const cspacepath_t *dest, seL4_Word type,
                                                  seL4_Word size_bits, bool can_use_dev, seL4_Word *res);
 
+#ifdef CONFIG_LAMP
+
+/**
+ * Allocate a portion of an untyped into an object, if the object is already allocated,
+ * just return its CPtr through @arg: dest
+ * 
+ * @param data cookie for the underlying allocator
+ * @param dest path to an empty cslot to place the cap to the allocated object
+ * @param type the seL4 object type to allocate (as passed to Untyped_Retype)
+ * @param size_bits the size of the object to allocate (as passed to Untyped_Retype)
+ * @param paddr The desired physical address that this object should start at
+ * @param can_use_dev whether the allocator can use device untyped instead of regular untyped
+ * @param res pointer to a location to store the cookie representing this allocation
+ * @return 0 on success
+ */
+typedef int (*vka_utspace_try_alloc_from_pool_fn)(void *data, cspacepath_t *dest, seL4_Word type, seL4_Word size_bits,
+                                                  uintptr_t paddr, bool can_use_dev, seL4_Word *res);
+
+typedef int (*vka_cspace_is_from_pool_fn)(void *data, seL4_CPtr cptr);
+
+#endif
+
 /**
  * Free a portion of an allocated untyped. Is the responsibility of the caller to
  * have already deleted the object (by deleting all capabilities) first
@@ -131,6 +153,10 @@ typedef struct vka {
     vka_cspace_free_fn cspace_free;
     vka_utspace_free_fn utspace_free;
     vka_utspace_paddr_fn utspace_paddr;
+#ifdef CONFIG_LAMP
+    vka_utspace_try_alloc_from_pool_fn utspace_try_alloc_from_pool;
+    vka_cspace_is_from_pool_fn cspace_is_from_pool;
+#endif
 } vka_t;
 
 static inline int vka_cspace_alloc(vka_t *vka, seL4_CPtr *res)
@@ -303,3 +329,41 @@ static inline uintptr_t vka_utspace_paddr(vka_t *vka, seL4_Word target, seL4_Wor
     return vka->utspace_paddr(vka->data, target, type, size_bits);
 }
 
+#ifdef CONFIG_LAMP
+
+/**
+ * If we use it to allocate an object, we may probably not need to allocate a new cspace slot.
+ * Make a new cspace path to the CPtr of the allocated object would be fair enough.
+ */
+static inline int vka_utspace_try_alloc_from_pool(vka_t *vka, cspacepath_t *dest, seL4_Word type, seL4_Word size_bits,
+                                                  uintptr_t paddr, bool can_use_dev, seL4_Word *res)
+{
+    if (!vka) {
+        ZF_LOGE("vka is NULL");
+        return -1;
+    }
+
+    if (!vka->utspace_try_alloc_from_pool) {
+        ZF_LOGE("Not implemented");
+        return -1;
+    }
+
+    return vka->utspace_try_alloc_from_pool(vka->data, dest, type, size_bits, paddr, can_use_dev, res);
+}
+
+static inline int vka_cspace_is_from_pool(vka_t *vka, seL4_CPtr cptr)
+{
+    if (!vka) {
+        ZF_LOGE("vka is NULL");
+        return -1;
+    }
+
+    if (!vka->cspace_is_from_pool) {
+        ZF_LOGE("Not implemented.");
+        return -1;
+    }
+
+    return vka->cspace_is_from_pool(vka, cptr);
+}
+
+#endif

@@ -41,6 +41,28 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
         goto error;
     }
 
+    cspacepath_t path;
+
+#if CONFIG_LIB_VKA_ALLOW_MEMORY_POOL
+
+    if (type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
+        error = vka_utspace_try_alloc_from_pool(vka, &path, type, size_bits, paddr, can_use_dev, &result->ut);
+        if (unlikely(error)) {
+            ZF_LOGE("Failed to allocate Frame of size %lu, error %d",
+                     BIT(size_bits), error);
+            goto err_pool;
+        }
+        if (!path.capPtr) {
+            ZF_LOGE("Failed to allocate cslot: error %d", error);
+            goto error;
+        }
+        result->type = type;
+        result->size_bits = size_bits;
+        return 0;
+    }
+
+#endif
+    
     error = vka_cspace_alloc(vka, &result->cptr);
     if (unlikely(error)) {
         result->cptr = 0;
@@ -48,7 +70,6 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
         goto error;
     }
 
-    cspacepath_t path;
     vka_cspace_make_path(vka, result->cptr, &path);
 
     if (paddr == VKA_NO_PADDR) {
@@ -75,6 +96,7 @@ error:
     if (result->cptr) {
         vka_cspace_free(vka, result->cptr);
     }
+err_pool:
     /* don't return garbage to the caller */
     memset(result, 0, sizeof(*result));
     return error;
@@ -99,6 +121,48 @@ static inline seL4_CPtr vka_alloc_object_leaky(vka_t *vka, seL4_Word type, seL4_
     return vka_alloc_object(vka, type, size_bits, &result) == -1 ? 0 : result.cptr;
 }
 
+#ifdef CONFIG_LAMP
+
+static inline void vka_free_capability(vka_t *vka, seL4_CPtr cptr)
+{
+    if (vka_cspace_is_from_pool(vka, cptr)) {
+        /**
+         * Do nothing because pre-allocated objects in pool
+         * should not be freed. Like pre-allocated frames,
+         * when we need to do some unmap, just call seL4_Arch_Umap,
+         * then the metadata kept in the frame object is released,
+         * and the frame object acts like a container then should
+         * not be freed because of future potential reuse.
+         */
+        return;
+    }
+    cspacepath_t path;
+    vka_cspace_make_path(vka, cptr, &path);
+    if (path.capPtr == 0) {
+        ZF_LOGE("Failed to create cspace path to object");
+        return;
+    }
+    seL4_CNode_Delete(path.root, path.capPtr, path.capDepth);
+    vka_cspace_free(vka, cptr);
+}
+
+static inline void vka_free_arch_object(vka_t *vka, vka_object_t *object)
+{
+    vka_free_capability(vka, object->cptr);
+}
+
+static inline void vka_free_object(vka_t *vka, vka_object_t *object)
+{
+    if (object->type >= seL4_NonArchObjectTypeCount) {
+        vka_free_arch_object(vka, object);
+        return;
+    }
+    vka_free_capability(vka, object->cptr);
+    vka_utspace_free(vka, object->type, object->size_bits, object->ut);
+}
+
+#else
+
 static inline void vka_free_object(vka_t *vka, vka_object_t *object)
 {
     cspacepath_t path;
@@ -115,6 +179,8 @@ static inline void vka_free_object(vka_t *vka, vka_object_t *object)
     vka_cspace_free(vka, object->cptr);
     vka_utspace_free(vka, object->type, object->size_bits, object->ut);
 }
+
+#endif
 
 static inline uintptr_t vka_object_paddr(vka_t *vka, vka_object_t *object)
 {
