@@ -38,9 +38,14 @@ static void dma_free(void *cookie, void *addr, size_t size)
         cspacepath_t path;
         seL4_CPtr frame = vspace_get_cap(&dma->vspace, addr + i * PAGE_SIZE_4K);
         vspace_unmap_pages(&dma->vspace, addr + i * PAGE_SIZE_4K, 1, PAGE_BITS_4K, NULL);
+
+#ifdef CONFIG_LAMP
+        vka_free_capability(&dma->vka, frame);
+#else
         vka_cspace_make_path(&dma->vka, frame, &path);
         vka_cnode_delete(&path);
         vka_cspace_free(&dma->vka, frame);
+#endif
     }
     vka_free_object(&dma->vka, &alloc->ut);
     free(alloc);
@@ -143,8 +148,13 @@ handle_error:
     if (frames) {
         for (int i = 0; i < num_frames; i++) {
             if (frames[i].capPtr) {
+                
+#ifdef CONFIG_LAMP
+                vka_free_capability(&dma->vka, frames[i].capPtr);
+#else
                 vka_cnode_delete(&frames[i]);
                 vka_cspace_free(&dma->vka, frames[i].capPtr);
+#endif
             }
         }
         free(frames);

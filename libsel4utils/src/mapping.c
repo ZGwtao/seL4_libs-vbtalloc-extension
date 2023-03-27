@@ -138,8 +138,12 @@ void *sel4utils_dup_and_map(vka_t *vka, vspace_t *vspace, seL4_CPtr page, size_t
     /* Now map it in */
     void *mapping = vspace_map_pages(vspace, &copy_path.capPtr, NULL,  seL4_AllRights, 1, size_bits, 1);
     if (!mapping) {
+#ifdef CONFIG_LAMP
+        vka_free_capability(vka, copy_path.capPtr);
+#else
         vka_cnode_delete(&copy_path);
         vka_cspace_free(vka, copy_path.capPtr);
+#endif
         return NULL;
     }
     return mapping;
@@ -154,7 +158,12 @@ void sel4utils_unmap_dup(vka_t *vka, vspace_t *vspace, void *mapping, size_t siz
     /* now free the mapping */
     vspace_unmap_pages(vspace, mapping, 1, size_bits, VSPACE_PRESERVE);
     /* delete and free the cap */
+
+#ifdef CONFIG_LAMP
+    vka_free_capability(vka, copy);
+#else
     vka_cspace_make_path(vka, copy, &copy_path);
     vka_cnode_delete(&copy_path);
     vka_cspace_free(vka, copy);
+#endif
 }

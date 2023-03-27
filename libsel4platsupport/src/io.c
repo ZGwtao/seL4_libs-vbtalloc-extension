@@ -86,9 +86,13 @@ static void destroy_node(vka_t *vka, io_mapping_t *mapping)
         vka_utspace_free(vka, kobject_get_type(KOBJECT_FRAME, mapping->page_size_bits),
                          mapping->page_size_bits, mapping->alloc_cookies[i]);
         /* free the caps */
+#ifdef CONFIG_LAMP
+        vka_free_capability(vka, mapping->caps[i]);
+#else
         vka_cspace_make_path(vka, mapping->caps[i], &path);
         vka_cnode_delete(&path);
         vka_cspace_free(vka, mapping->caps[i]);
+#endif
     }
     free_node(mapping);
 }
