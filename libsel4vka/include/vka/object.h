@@ -43,9 +43,14 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
 
     cspacepath_t path;
 
-#if CONFIG_LIB_VKA_ALLOW_MEMORY_POOL
-
+#ifdef CONFIG_LAMP
     if (type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
+        /**
+         * path = dest, so use it to receive the cspacepath of pre-allocated object,
+         * and since it's pre-allocated, there shall not be any origin untyped that
+         * had the same size as the target object ..., so we can use result->ut = -1
+         * to denode that it was pre-allocated from the untyped allocator.
+         */
         error = vka_utspace_try_alloc_from_pool(vka, &path, type, size_bits, paddr, can_use_dev, &result->ut);
         if (unlikely(error)) {
             ZF_LOGE("Failed to allocate Frame of size %lu, error %d",
@@ -58,6 +63,7 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
         }
         result->type = type;
         result->size_bits = size_bits;
+        result->cptr = path.capPtr;
         return 0;
     }
 
