@@ -20,7 +20,7 @@ config_option(LibVKAAllowMemoryLeaks LIB_VKA_ALLOW_MEMORY_LEAKS "Leak memory on 
 config_option(
     LibVKAAllowMemoryPool
     LAMP
-    "Memory pool (pre-allocated objects) enable libsel4vbtalloc to \
+    "Memory pool (pre-allocated objects) enable libsel4vbtallocman to \
     perform frame object pre-allocation, which is beneficial to \
     the implementation of buddy system on top of seL4 micro-kernel."
     DEFAULT
