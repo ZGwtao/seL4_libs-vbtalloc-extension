@@ -319,6 +319,41 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
     return _allocman_utspace_alloc(alloc, size_bits, type, path, paddr, canBeDev, _error, 1);
 }
 
+#ifdef CONFIG_LAMP
+
+int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t size_bits, uintptr_t paddr,
+                                         bool canBeDev, seL4_Word *res, cspacepath_t *path, bool *isFromPool)
+{
+    int root_op;
+    int error;
+    if (!alloc->have_utspace) {
+        return 1;
+    }
+    root_op = _start_operation(alloc);
+    /* Attempt the allocation */
+    alloc->utspace_alloc_depth++;
+    error = alloc->utspace.pool(alloc, type, size_bits, paddr, canBeDev, res, path, isFromPool);
+    alloc->utspace_alloc_depth--;
+    if (!error) {
+        _end_operation(alloc, root_op);
+        return 0;
+    }
+    _end_operation(alloc, root_op);
+
+}
+
+int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr)
+{
+    assert(alloc->have_cspace);
+    int root = _start_operation(alloc);
+    alloc->cspace_free_depth++;
+    alloc->cspace.pool(alloc, cptr);
+    alloc->cspace_free_depth--;
+    _end_operation(alloc, root);
+}
+
+#endif
+
 static int _refill_watermark(allocman_t *alloc)
 {
     int found_empty_pool;

@@ -262,6 +262,15 @@ seL4_Word allocman_utspace_alloc(allocman_t *alloc, size_t size_bits, seL4_Word 
  */
 void allocman_utspace_free(allocman_t *alloc, seL4_Word cookie, size_t size_bits);
 
+#ifdef CONFIG_LAMP
+
+int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, seL4_Word size_bits, uintptr_t paddr,
+                                         bool canBeDev, seL4_Word *res, cspacepath_t *dest, bool *isFromPool);
+
+int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr);
+
+#endif
+
 /**
  * Initialize a new allocman. all it requires is a memory allocator, everything will be boot strapped from it
  *

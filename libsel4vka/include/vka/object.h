@@ -44,7 +44,9 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
     cspacepath_t path;
 
 #ifdef CONFIG_LAMP
-    if (type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
+
+    if (paddr == VKA_NO_PADDR && can_use_dev == false &&
+        type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
         /**
          * path = dest, so use it to receive the cspacepath of pre-allocated object,
          * and since it's pre-allocated, there shall not be any origin untyped that
@@ -53,18 +55,16 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
          */
         error = vka_utspace_try_alloc_from_pool(vka, &path, type, size_bits, paddr, can_use_dev, &result->ut);
         if (unlikely(error)) {
-            ZF_LOGE("Failed to allocate Frame of size %lu, error %d",
+            ZF_LOGE("Error occur when trying allocating Frame of size %lu from pool, error %d",
                      BIT(size_bits), error);
             goto err_pool;
         }
-        if (!path.capPtr) {
-            ZF_LOGE("Failed to allocate cslot: error %d", error);
-            goto error;
+        if (path.capPtr) {
+            result->type = type;
+            result->size_bits = size_bits;
+            result->cptr = path.capPtr;
+            return 0;
         }
-        result->type = type;
-        result->size_bits = size_bits;
-        result->cptr = path.capPtr;
-        return 0;
     }
 
 #endif

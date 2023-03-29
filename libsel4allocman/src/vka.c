@@ -173,6 +173,52 @@ static uintptr_t am_vka_utspace_paddr (void *data, seL4_Word target, seL4_Word t
     return allocman_utspace_paddr((allocman_t *)data, target, size_bits);
 }
 
+#ifdef CONFIG_LAMP
+
+static int am_vka_utspace_try_alloc_from_pool(void *data, cspacepath_t *dest, seL4_Word type,
+                      seL4_Word size_bits, uintptr_t paddr, bool can_use_dev, seL4_Word *res)
+{
+    assert(data);
+    assert(res);
+
+    int error = 1;
+
+    bool isFromPool = false;
+
+    if (paddr == ALLOCMAN_NO_PADDR) {
+
+        /* allocman uses the size in memory internally, where as vka expects size_bits
+        * as passed to Untyped_Retype, so do a conversion here */
+        size_bits = vka_get_object_size(type, size_bits);
+
+        error = allocman_utspace_try_alloc_from_pool((allocman_t *)data, type, size_bits, ALLOCMAN_NO_PADDR, false, res, dest, &isFromPool);
+        if (error) {
+            /* Error occur when requiring memory block from pool */
+            return error;
+        }
+
+        if (!isFromPool) {
+            ZF_LOGE("Failed to alocate Frame of size %lu from pool, error %d",
+                     BIT(size_bits), error);
+        }
+        return 0;
+
+    } else {
+        /* Not implemented yet. */
+        ZF_LOGE("Pools for other objects are not implemented yet.");
+    }
+    return error;
+}
+
+static int am_vka_cspace_is_from_pool(void *data, seL4_CPtr cptr)
+{
+    assert(data);
+
+    return allocman_cspace_is_from_pool((allocman_t *)data, cptr);
+}
+
+#endif
+
 /**
  * Make a VKA object using this allocman
  *
@@ -193,6 +239,14 @@ void allocman_make_vka(vka_t *vka, allocman_t *alloc)
     vka->cspace_free = &am_vka_cspace_free;
     vka->utspace_free = &am_vka_utspace_free;
     vka->utspace_paddr = &am_vka_utspace_paddr;
+
+#ifdef CONFIG_LAMP
+
+    vka->utspace_try_alloc_from_pool = &am_vka_utspace_try_alloc_from_pool;
+    vka->cspace_is_from_pool = &am_vka_cspace_is_from_pool;
+
+#endif
+
 }
 
 int allocman_make_from_vka(vka_t *vka, allocman_t *alloc)
