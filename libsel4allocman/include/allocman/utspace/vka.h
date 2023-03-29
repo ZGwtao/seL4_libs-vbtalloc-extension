@@ -80,6 +80,9 @@ static inline struct utspace_interface utspace_vka_make_interface(vka_t *vka) {
         .free = _utspace_vka_free,
         .add_uts = _utspace_vka_add_uts,
         .paddr = _utspace_vka_paddr,
+#ifdef CONFIG_LAMP
+        .pool = NULL,
+#endif
         .properties = ALLOCMAN_DEFAULT_PROPERTIES,
         .utspace = vka
     };

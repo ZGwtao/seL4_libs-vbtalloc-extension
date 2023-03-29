@@ -57,6 +57,9 @@ typedef struct utspace_interface {
     void (*free)(struct allocman *alloc, void *utspace, seL4_Word cookie, size_t size_bits);
     int (*add_uts)(struct allocman *alloc, void *utspace, size_t num, const cspacepath_t *uts, size_t *size_bits, uintptr_t *paddr, int utType);
     uintptr_t (*paddr)(void *utspace, seL4_Word cookie, size_t size_bits);
+#ifdef CONFIG_LAMP
+    int (*pool)(struct allocman *alloc, seL4_Word type, size_t size_bits, uintptr_t paddr, bool canBeDev, seL4_Word *res, cspacepath_t *path, bool *isFromPool);
+#endif
     struct allocman_properties properties;
     void *utspace;
 }utspace_interface_t;
