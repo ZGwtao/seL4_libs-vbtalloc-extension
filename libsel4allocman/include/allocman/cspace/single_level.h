@@ -59,6 +59,9 @@ static inline cspace_interface_t cspace_single_level_make_interface(cspace_singl
         .alloc = _cspace_single_level_alloc,
         .free = _cspace_single_level_free,
         .make_path = _cspace_single_level_make_path,
+#ifdef CONFIG_LAMP
+        .pool = NULL,
+#endif
         /* We do not want to handle recursion, as it shouldn't happen */
         .properties = ALLOCMAN_DEFAULT_PROPERTIES,
         .cspace = cspace

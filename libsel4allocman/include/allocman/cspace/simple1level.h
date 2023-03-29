@@ -62,6 +62,9 @@ static inline struct cspace_interface cspace_simple1level_make_interface(cspace_
         .alloc = _cspace_simple1level_alloc,
         .free = _cspace_simple1level_free,
         .make_path = _cspace_simple1level_make_path,
+#ifdef CONFIG_LAMP
+        .pool = NULL,
+#endif
         /* We could give arbitrary recursion properties here. Since we perform no
            other allocations we never even have the potential to recurse */
         .properties = ALLOCMAN_DEFAULT_PROPERTIES,
