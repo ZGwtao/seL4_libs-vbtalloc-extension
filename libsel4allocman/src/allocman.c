@@ -321,6 +321,28 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
 
 #ifdef CONFIG_LAMP
 
+static int _allocman_cspace_alloc(allocman_t *alloc, cspacepath_t *slots, int num)
+{
+    int root_op;
+    int error;
+
+    if (!alloc->have_cspace) {
+        return 1;
+    }
+
+    root_op = _start_operation(alloc);
+    alloc->cspace_alloc_depth++;
+    error = alloc->cspace.csa(alloc, alloc->cspace.cspace, slots, num);
+    alloc->cspace_alloc_depth--;
+    _end_operation(alloc, root_op);
+    return error;
+}
+
+int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, int num)
+{
+    return _allocman_cspace_csa(alloc, slots, num);
+}
+
 int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t size_bits,
                                          uintptr_t paddr, bool canBeDev, cspacepath_t *res)
 {
@@ -366,7 +388,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         //!
         //!TODO: contiguous ...
         //!
-        //! allocman_cspace_alloc_csa(alloc, &dest_slot, 1024);
+        allocman_cspace_alloc_csa(alloc, &des_slot, 1024);
 
         vbt_tree_init(alloc, nt, paddr, src_slot.capPtr, des_slot, 22);
         vbt_tree_insert(&alloc->frame_pool.mem_treeList[10], nt);
