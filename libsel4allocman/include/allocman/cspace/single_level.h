@@ -29,6 +29,12 @@ typedef struct cspace_single_level {
     size_t *bitmap;
     size_t bitmap_length;
     size_t last_entry;
+    /* extra argument */
+#ifdef CONFIG_LAMP
+    size_t contiguous_limit;
+    size_t contiguous_watermark;
+#endif
+
 } cspace_single_level_t;
 
 int cspace_single_level_create(struct allocman *alloc, cspace_single_level_t *cspace, struct cspace_single_level_config config);
@@ -43,7 +49,7 @@ void _cspace_single_level_free(struct allocman *alloc, void *_cspace, const cspa
 #ifdef CONFIG_LAMP
 
 int _cspace_single_level_csa(struct allocman *alloc, void *_cspace, cspacepath_t *slots, int num);
-int _cspace_single_level_pool(struct allocman *alloc, seL4_CPtr slot);
+int _cspace_single_level_pool(struct allocman *alloc, void *_cspace, seL4_CPtr slot);
 
 #endif
 
