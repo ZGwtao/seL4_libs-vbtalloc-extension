@@ -40,6 +40,13 @@ int _cspace_single_level_alloc(struct allocman *alloc, void *_cspace, cspacepath
 int _cspace_single_level_alloc_at(struct allocman *alloc, void *_cspace, seL4_CPtr slot);
 void _cspace_single_level_free(struct allocman *alloc, void *_cspace, const cspacepath_t *slot);
 
+#ifdef CONFIG_LAMP
+
+int _cspace_single_level_csa(struct allocman *alloc, void *_cspace, cspacepath_t *slots, int num);
+int _cspace_single_level_pool(struct allocman *alloc, seL4_CPtr slot);
+
+#endif
+
 static inline cspacepath_t _cspace_single_level_make_path(void *_cspace, seL4_CPtr slot)
 {
     cspace_single_level_t *cspace = (cspace_single_level_t*) _cspace;
@@ -60,8 +67,8 @@ static inline cspace_interface_t cspace_single_level_make_interface(cspace_singl
         .free = _cspace_single_level_free,
         .make_path = _cspace_single_level_make_path,
 #ifdef CONFIG_LAMP
-        .pool = NULL,
-        .csa = NULL,
+        .pool = _cspace_single_level_pool,
+        .csa = _cspace_single_level_csa,
 #endif
         /* We do not want to handle recursion, as it shouldn't happen */
         .properties = ALLOCMAN_DEFAULT_PROPERTIES,
