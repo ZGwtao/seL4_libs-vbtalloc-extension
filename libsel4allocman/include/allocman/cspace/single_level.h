@@ -61,6 +61,7 @@ static inline cspace_interface_t cspace_single_level_make_interface(cspace_singl
         .make_path = _cspace_single_level_make_path,
 #ifdef CONFIG_LAMP
         .pool = NULL,
+        .csa = NULL,
 #endif
         /* We do not want to handle recursion, as it shouldn't happen */
         .properties = ALLOCMAN_DEFAULT_PROPERTIES,

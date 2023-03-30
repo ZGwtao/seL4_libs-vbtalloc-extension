@@ -47,6 +47,7 @@ static inline struct cspace_interface cspace_vka_make_interface(vka_t *vka) {
         .make_path = _cspace_vka_make_path,
 #ifdef CONFIG_LAMP
         .pool = NULL,
+        .csa = NULL,
 #endif
         /* VKA is not guaranteed to recurse */
         .properties = ALLOCMAN_DEFAULT_PROPERTIES,
