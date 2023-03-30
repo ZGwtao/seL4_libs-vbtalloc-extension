@@ -321,7 +321,7 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
 
 #ifdef CONFIG_LAMP
 
-static int _allocman_cspace_alloc(allocman_t *alloc, cspacepath_t *slots, int num)
+static int _allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
 {
     int root_op;
     int error;
@@ -332,15 +332,15 @@ static int _allocman_cspace_alloc(allocman_t *alloc, cspacepath_t *slots, int nu
 
     root_op = _start_operation(alloc);
     alloc->cspace_alloc_depth++;
-    error = alloc->cspace.csa(alloc, alloc->cspace.cspace, slots, num);
+    error = alloc->cspace.csa(alloc, alloc->cspace.cspace, slots, num_bits);
     alloc->cspace_alloc_depth--;
     _end_operation(alloc, root_op);
     return error;
 }
 
-int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, int num)
+int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
 {
-    return _allocman_cspace_csa(alloc, slots, num);
+    return _allocman_cspace_csa(alloc, slots, num_bits);
 }
 
 int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t size_bits,
@@ -388,7 +388,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         //!
         //!TODO: contiguous ...
         //!
-        allocman_cspace_alloc_csa(alloc, &des_slot, 1024);
+        allocman_cspace_csa(alloc, &des_slot, 10);
 
         vbt_tree_init(alloc, nt, paddr, src_slot.capPtr, des_slot, 22);
         vbt_tree_insert(&alloc->frame_pool.mem_treeList[10], nt);
@@ -404,7 +404,7 @@ int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr)
     assert(alloc->have_cspace);
     int root = _start_operation(alloc);
     alloc->cspace_free_depth++;
-    alloc->cspace.pool(alloc, cptr);
+    alloc->cspace.pool(alloc, alloc->cspace.cspace, cptr);
     alloc->cspace_free_depth--;
     _end_operation(alloc, root);
 }

@@ -39,7 +39,13 @@ int cspace_single_level_create(struct allocman *alloc, cspace_single_level_t *cs
             cspace->bitmap[num_entries - 1] ^= BIT(i);
         }
     }
+#ifdef CONFIG_LAMP
+    cspace->last_entry = num_entries / 2;
+    cspace->contiguous_limit = num_entries / 2;
+    cspace->contiguous_watermark = 0;
+#else
     cspace->last_entry = 0;
+#endif
     return 0;
 }
 
@@ -94,3 +100,53 @@ void _cspace_single_level_free(allocman_t *alloc, void *_cspace, const cspacepat
     assert((cspace->bitmap[index / BITS_PER_WORD] & BIT(index % BITS_PER_WORD)) == 0);
     cspace->bitmap[index / BITS_PER_WORD] |= BIT(index % BITS_PER_WORD);
 }
+
+#ifndef CONFIG_LAMP
+#else
+
+int _cspace_single_level_csa(struct allocman *alloc, void *_cspace, cspacepath_t *slots, size_t num_bits)
+{
+    cspace_single_level_t *cspace = (cspace_single_level_t *)_cspace;
+#define _MASK_FOR_HEAD_(X) ((BIT(BITS_PER_WORD - (X)) - 1ul))
+    size_t num = BIT(num_bits);
+    size_t watermark = cspace->contiguous_watermark;
+    size_t remains = cspace->contiguous_limit * BITS_PER_WORD - watermark;
+    size_t offset = cspace->contiguous_watermark % BITS_PER_WORD;
+    size_t base = cspace->contiguous_watermark / BITS_PER_WORD;
+
+    if (num > remains) {
+        return 1;
+    }
+
+    cspace->contiguous_watermark += num;
+
+    if (num <= BITS_PER_WORD - offset) {
+        cspace->bitmap[base] &= _MASK_FOR_HEAD_(offset + num);
+    } else {
+        size_t new_offset = cspace->contiguous_watermark % BITS_PER_WORD;
+        size_t new_base = cspace->contiguous_watermark / BITS_PER_WORD;
+        for (size_t i = base; i < new_base; ++i) {
+            cspace->bitmap[i] &= 0ul;
+        }
+        cspace->bitmap[new_base] &= _MASK_FOR_HEAD_(new_offset);
+    }
+#undef _MASK_FOR_HEAD_
+    slots->root = cspace->config.cnode;
+    slots->capPtr = cspace->config.first_slot + watermark;
+    slots->capDepth = cspace->config.cnode_size_bits + cspace->config.cnode_guard_bits;
+    slots->dest = 0;
+    slots->destDepth = 0;
+    slots->offset = cspace->config.first_slot + watermark;
+    slots->window = num;
+    return 0;
+}
+
+int _cspace_single_level_pool(struct allocman *alloc, void *_cspace, seL4_CPtr slot)
+{
+    cspace_single_level_t *cspace = (cspace_single_level_t *)_cspace;
+    
+    return (slot - cspace->config.first_slot) < cspace->contiguous_limit;
+}
+
+
+#endif
