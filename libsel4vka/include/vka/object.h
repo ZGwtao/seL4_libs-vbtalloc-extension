@@ -53,17 +53,18 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
          * had the same size as the target object ..., so we can use result->ut = -1
          * to denode that it was pre-allocated from the untyped allocator.
          */
-        error = vka_utspace_try_alloc_from_pool(vka, &path, type, size_bits, paddr, can_use_dev, &result->ut);
+        error = vka_utspace_try_alloc_from_pool(vka, type, size_bits, paddr, can_use_dev, &path);
         if (unlikely(error)) {
             ZF_LOGE("Error occur when trying allocating Frame of size %lu from pool, error %d",
                      BIT(size_bits), error);
             goto err_pool;
         }
         if (path.capPtr) {
+            result->ut = 0;
             result->type = type;
             result->size_bits = size_bits;
             result->cptr = path.capPtr;
-            return 0;
+            return error;
         }
     }
 

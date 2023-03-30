@@ -102,8 +102,8 @@ typedef int (*vka_utspace_alloc_maybe_device_fn)(void *data, const cspacepath_t 
  * @param res pointer to a location to store the cookie representing this allocation
  * @return 0 on success
  */
-typedef int (*vka_utspace_try_alloc_from_pool_fn)(void *data, cspacepath_t *dest, seL4_Word type, seL4_Word size_bits,
-                                                  uintptr_t paddr, bool can_use_dev, seL4_Word *res);
+typedef int (*vka_utspace_try_alloc_from_pool_fn)(void *data, seL4_Word type, seL4_Word size_bits,
+                                                  uintptr_t paddr, bool can_use_dev, cspacepath_t *res);
 
 typedef int (*vka_cspace_is_from_pool_fn)(void *data, seL4_CPtr cptr);
 
@@ -335,8 +335,8 @@ static inline uintptr_t vka_utspace_paddr(vka_t *vka, seL4_Word target, seL4_Wor
  * If we use it to allocate an object, we may probably not need to allocate a new cspace slot.
  * Make a new cspace path to the CPtr of the allocated object would be fair enough.
  */
-static inline int vka_utspace_try_alloc_from_pool(vka_t *vka, cspacepath_t *dest, seL4_Word type, seL4_Word size_bits,
-                                                  uintptr_t paddr, bool can_use_dev, seL4_Word *res)
+static inline int vka_utspace_try_alloc_from_pool(vka_t *vka, seL4_Word type, seL4_Word size_bits,
+                                                  uintptr_t paddr, bool can_use_dev, cspacepath_t *res)
 {
     if (!vka) {
         ZF_LOGE("vka is NULL");
@@ -348,7 +348,7 @@ static inline int vka_utspace_try_alloc_from_pool(vka_t *vka, cspacepath_t *dest
         return -1;
     }
 
-    return vka->utspace_try_alloc_from_pool(vka->data, dest, type, size_bits, paddr, can_use_dev, res);
+    return vka->utspace_try_alloc_from_pool(vka->data, type, size_bits, paddr, can_use_dev, res);
 }
 
 static inline int vka_cspace_is_from_pool(vka_t *vka, seL4_CPtr cptr)

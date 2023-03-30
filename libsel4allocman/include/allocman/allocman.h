@@ -49,6 +49,7 @@
 #include <autoconf.h>
 #include <sel4/types.h>
 #include <allocman/util.h>
+#include <allocman/vbtutils.h>
 #include <allocman/cspace/cspace.h>
 #include <allocman/mspace/mspace.h>
 #include <allocman/utspace/utspace.h>
@@ -92,6 +93,8 @@ struct allocman_freed_utspace_chunk {
     size_t size_bits;
     seL4_Word cookie;
 };
+
+struct vbt_forrest;
 
 /**
  * The allocman itself. This is generally the only type you will need to pass around
@@ -153,6 +156,11 @@ typedef struct allocman {
     struct allocman_utspace_chunk *utspace_chunk;
     size_t *utspace_chunk_count;
     struct allocman_utspace_allocation **utspace_chunks;
+
+#ifdef CONFIG_LAMP
+    struct vbt_forrest frame_pool;
+#endif
+
 } allocman_t;
 
 /**
@@ -264,8 +272,8 @@ void allocman_utspace_free(allocman_t *alloc, seL4_Word cookie, size_t size_bits
 
 #ifdef CONFIG_LAMP
 
-int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, seL4_Word size_bits, uintptr_t paddr,
-                                         bool canBeDev, seL4_Word *res, cspacepath_t *dest, bool *isFromPool);
+int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, seL4_Word size_bits,
+                                         uintptr_t paddr, bool canBeDev, cspacepath_t *res);
 
 int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr);
 

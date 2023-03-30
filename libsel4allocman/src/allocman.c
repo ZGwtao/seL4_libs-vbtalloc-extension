@@ -321,25 +321,60 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
 
 #ifdef CONFIG_LAMP
 
-int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t size_bits, uintptr_t paddr,
-                                         bool canBeDev, seL4_Word *res, cspacepath_t *path, bool *isFromPool)
+int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t size_bits,
+                                         uintptr_t paddr, bool canBeDev, cspacepath_t *res)
 {
     int root_op;
     int error;
     if (!alloc->have_utspace) {
         return 1;
     }
-    root_op = _start_operation(alloc);
-    /* Attempt the allocation */
-    alloc->utspace_alloc_depth++;
-    error = alloc->utspace.pool(alloc, type, size_bits, paddr, canBeDev, res, path, isFromPool);
-    alloc->utspace_alloc_depth--;
-    if (!error) {
-        _end_operation(alloc, root_op);
-        return 0;
-    }
-    _end_operation(alloc, root_op);
 
+    if (size_bits != 12) {
+        ZF_LOGE("Frame type other than 4k not implemented yet.");
+        return 1;
+    }
+
+    seL4_CPtr slot;
+
+    while (vbt_acq_frame_from_pool(&alloc->frame_pool, size_bits, &slot)) {
+        /* Failed to acquire pre-allocated frame from pool */
+
+        cspacepath_t src_slot;
+        cspacepath_t des_slot;
+        seL4_CPtr cookie;
+        uintptr_t paddr;
+
+        error = allocman_cspace_alloc(alloc, &src_slot);
+        if (error) {
+            return error;
+        }
+
+        cookie = allocman_utspace_alloc(alloc, 22, seL4_UntypedObject, &src_slot, false, &error);
+        if (error) {
+            return error;
+        }
+        paddr = allocman_utspace_paddr(alloc, cookie, 22);
+
+        struct vbt_tree *nt;
+        allocman_mspace_alloc(alloc, sizeof(*nt), &error);
+        if (error) {
+            return error;
+        }
+
+        /* contiguous region required. */
+        //!
+        //!TODO: contiguous ...
+        //!
+        //! allocman_cspace_alloc_csa(alloc, &dest_slot, 1024);
+
+        vbt_tree_init(alloc, nt, paddr, src_slot.capPtr, des_slot, 22);
+        vbt_tree_insert(&alloc->frame_pool.mem_treeList[10], nt);
+    }
+
+    *res = allocman_cspace_make_path(alloc, slot);
+    
+    return 0;
 }
 
 int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr)

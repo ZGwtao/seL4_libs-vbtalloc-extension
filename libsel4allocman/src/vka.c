@@ -175,15 +175,13 @@ static uintptr_t am_vka_utspace_paddr (void *data, seL4_Word target, seL4_Word t
 
 #ifdef CONFIG_LAMP
 
-static int am_vka_utspace_try_alloc_from_pool(void *data, cspacepath_t *dest, seL4_Word type,
-                      seL4_Word size_bits, uintptr_t paddr, bool can_use_dev, seL4_Word *res)
+static int am_vka_utspace_try_alloc_from_pool(void *data, seL4_Word type, seL4_Word size_bits,
+                                         uintptr_t paddr, bool can_use_dev, cspacepath_t *res)
 {
     assert(data);
     assert(res);
 
     int error = 1;
-
-    bool isFromPool = false;
 
     if (paddr == ALLOCMAN_NO_PADDR) {
 
@@ -191,17 +189,7 @@ static int am_vka_utspace_try_alloc_from_pool(void *data, cspacepath_t *dest, se
         * as passed to Untyped_Retype, so do a conversion here */
         size_bits = vka_get_object_size(type, size_bits);
 
-        error = allocman_utspace_try_alloc_from_pool((allocman_t *)data, type, size_bits, ALLOCMAN_NO_PADDR, false, res, dest, &isFromPool);
-        if (error) {
-            /* Error occur when requiring memory block from pool */
-            return error;
-        }
-
-        if (!isFromPool) {
-            ZF_LOGE("Failed to alocate Frame of size %lu from pool, error %d",
-                     BIT(size_bits), error);
-        }
-        return 0;
+        error = allocman_utspace_try_alloc_from_pool((allocman_t *)data, type, size_bits, ALLOCMAN_NO_PADDR, false, res);
 
     } else {
         /* Not implemented yet. */
