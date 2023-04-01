@@ -10,7 +10,7 @@
 
 #define BITMAP_DEPTH            6
 #define BITMAP_SIZE             BIT(BITMAP_DEPTH)
-#define BITMAP_SUB_OFFSET(X)    ((X) - (BITMAP_SIZE >> 1))
+#define BITMAP_SUB_OFFSET(X)    ((X) - 32)
 
 #define BITMAP_LEVEL            ((BITMAP_DEPTH) - 1)
 #define BITMAP_REMAIN           ((BITMAP_SIZE) - (BITMAP_DEPTH))
@@ -57,14 +57,9 @@ struct vbt_tree {
 
 struct vbt_forrest {
     struct vbt_tree *mem_treeList[11];
+    struct vbt_tree *empty;
 };
 
 typedef struct vbt_forrest vbt_pool_t;
 
 struct allocman;
-
-void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
-void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
-void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path);
-void vbt_tree_insert(struct vbt_tree **treeList, struct vbt_tree *tree);
-int vbt_acq_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res);
