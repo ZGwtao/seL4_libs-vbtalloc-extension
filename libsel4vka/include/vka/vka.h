@@ -363,7 +363,7 @@ static inline int vka_cspace_is_from_pool(vka_t *vka, seL4_CPtr cptr)
         return -1;
     }
 
-    return vka->cspace_is_from_pool(vka, cptr);
+    return vka->cspace_is_from_pool(vka->data, cptr);
 }
 
 #endif
