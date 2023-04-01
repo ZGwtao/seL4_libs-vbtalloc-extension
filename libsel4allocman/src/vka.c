@@ -198,6 +198,13 @@ static int am_vka_utspace_try_alloc_from_pool(void *data, seL4_Word type, seL4_W
     return error;
 }
 
+static void am_vka_utspace_try_free_from_pool(void *data, seL4_CPtr cptr)
+{
+    assert(data);
+
+
+}
+
 static int am_vka_cspace_is_from_pool(void *data, seL4_CPtr cptr)
 {
     assert(data);
@@ -231,6 +238,7 @@ void allocman_make_vka(vka_t *vka, allocman_t *alloc)
 #ifdef CONFIG_LAMP
 
     vka->utspace_try_alloc_from_pool = &am_vka_utspace_try_alloc_from_pool;
+    vka->utspace_try_free_from_pool = &am_vka_utspace_try_free_from_pool;
     vka->cspace_is_from_pool = &am_vka_cspace_is_from_pool;
 
 #endif

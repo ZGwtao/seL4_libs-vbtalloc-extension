@@ -104,7 +104,7 @@ typedef int (*vka_utspace_alloc_maybe_device_fn)(void *data, const cspacepath_t 
  */
 typedef int (*vka_utspace_try_alloc_from_pool_fn)(void *data, seL4_Word type, seL4_Word size_bits,
                                                   uintptr_t paddr, bool can_use_dev, cspacepath_t *res);
-
+typedef void (*vka_utspace_try_free_from_pool_fn)(void *data, seL4_CPtr cptr);
 typedef int (*vka_cspace_is_from_pool_fn)(void *data, seL4_CPtr cptr);
 
 #endif
@@ -155,6 +155,7 @@ typedef struct vka {
     vka_utspace_paddr_fn utspace_paddr;
 #ifdef CONFIG_LAMP
     vka_utspace_try_alloc_from_pool_fn utspace_try_alloc_from_pool;
+    vka_utspace_try_free_from_pool_fn utspace_try_free_from_pool;
     vka_cspace_is_from_pool_fn cspace_is_from_pool;
 #endif
 } vka_t;
@@ -349,6 +350,21 @@ static inline int vka_utspace_try_alloc_from_pool(vka_t *vka, seL4_Word type, se
     }
 
     return vka->utspace_try_alloc_from_pool(vka->data, type, size_bits, paddr, can_use_dev, res);
+}
+
+static inline void vka_utspace_try_free_from_pool(vka_t *vka, seL4_CPtr cptr)
+{
+    if (!vka) {
+        ZF_LOGE("vka is NULL");
+        return;
+    }
+
+    if (!vka->utspace_try_free_from_pool) {
+        ZF_LOGE("Not implemented.");
+        return;
+    }
+
+    vka->utspace_try_free_from_pool(vka->data, cptr);
 }
 
 static inline int vka_cspace_is_from_pool(vka_t *vka, seL4_CPtr cptr)
