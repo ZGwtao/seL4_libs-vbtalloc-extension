@@ -39,7 +39,7 @@ int cspace_single_level_create(struct allocman *alloc, cspace_single_level_t *cs
             cspace->bitmap[num_entries - 1] ^= BIT(i);
         }
     }
-#ifdef CONFIG_LAMP
+#if 1
     cspace->last_entry = num_entries / 2;
     cspace->contiguous_limit = num_entries / 2;
     cspace->contiguous_watermark = 0;
@@ -53,6 +53,24 @@ void cspace_single_level_destroy(struct allocman *alloc, cspace_single_level_t *
 {
     allocman_mspace_free(alloc, cspace->bitmap, cspace->bitmap_length * sizeof(size_t));
 }
+
+int _cspace_single_level_alloc_at(allocman_t *alloc, void *_cspace, seL4_CPtr slot) {
+    cspace_single_level_t *cspace = (cspace_single_level_t*)_cspace;
+    size_t index = slot - cspace->config.first_slot;
+    /* make sure index is in range */
+    if (index / BITS_PER_WORD >= cspace->bitmap_length) {
+        return 1;
+    }
+    /* make sure not already allocated */
+    if ( (cspace->bitmap[index / BITS_PER_WORD] & BIT(index % BITS_PER_WORD)) == 0) {
+        return 1;
+    }
+    /* mark it as allocated */
+    cspace->bitmap[index / BITS_PER_WORD] &= ~BIT(index % BITS_PER_WORD);
+    return 0;
+}
+
+#if 0
 
 int _cspace_single_level_alloc(allocman_t *alloc, void *_cspace, cspacepath_t *slot)
 {
@@ -77,22 +95,6 @@ int _cspace_single_level_alloc(allocman_t *alloc, void *_cspace, cspacepath_t *s
     return 0;
 }
 
-int _cspace_single_level_alloc_at(allocman_t *alloc, void *_cspace, seL4_CPtr slot) {
-    cspace_single_level_t *cspace = (cspace_single_level_t*)_cspace;
-    size_t index = slot - cspace->config.first_slot;
-    /* make sure index is in range */
-    if (index / BITS_PER_WORD >= cspace->bitmap_length) {
-        return 1;
-    }
-    /* make sure not already allocated */
-    if ( (cspace->bitmap[index / BITS_PER_WORD] & BIT(index % BITS_PER_WORD)) == 0) {
-        return 1;
-    }
-    /* mark it as allocated */
-    cspace->bitmap[index / BITS_PER_WORD] &= ~BIT(index % BITS_PER_WORD);
-    return 0;
-}
-
 void _cspace_single_level_free(allocman_t *alloc, void *_cspace, const cspacepath_t *slot)
 {
     cspace_single_level_t *cspace = (cspace_single_level_t*)_cspace;
@@ -101,8 +103,50 @@ void _cspace_single_level_free(allocman_t *alloc, void *_cspace, const cspacepat
     cspace->bitmap[index / BITS_PER_WORD] |= BIT(index % BITS_PER_WORD);
 }
 
-#ifndef CONFIG_LAMP
 #else
+
+static size_t cspace_find_avail_bitmap(cspace_single_level_t *cspace)
+{
+    size_t i = cspace->last_entry;
+    if (cspace->bitmap[i] == 0) {
+        assert(cspace->bitmap_length != 0);
+        assert(cspace->last_entry < cspace->bitmap_length);
+        do {
+            i = (i + 1) % cspace->bitmap_length;
+            if (i == 0) {
+                i = cspace->contiguous_limit;
+            }
+        } while (cspace->bitmap[i] == 0 && i != cspace->last_entry);
+        if (i == cspace->last_entry) {
+            return (size_t)-1;
+        }
+        cspace->last_entry = i;
+    }
+    return i;
+}
+
+int _cspace_single_level_alloc(allocman_t *alloc, void *_cspace, cspacepath_t *slot)
+{
+    cspace_single_level_t *cspace = (cspace_single_level_t*)_cspace;
+    size_t i = cspace_find_avail_bitmap(cspace);
+    if (i == (size_t)-1) {
+        return 1;
+    }
+    size_t offset = CLZL(cspace->bitmap[i]);
+    cspace->bitmap[i] &= ~BIT((BITS_PER_WORD) - offset - 1);
+    *slot = _cspace_single_level_make_path(cspace, cspace->config.first_slot + (i * BITS_PER_WORD + offset));
+    return 0;
+}
+
+void _cspace_single_level_free(allocman_t *alloc, void *_cspace, const cspacepath_t *slot)
+{
+    cspace_single_level_t *cspace = (cspace_single_level_t*)_cspace;
+    size_t index = slot->capPtr - cspace->config.first_slot;
+    size_t offset = index % BITS_PER_WORD;
+    size_t base = index / BITS_PER_WORD;
+    assert(!(cspace->bitmap[base] & BIT((BITS_PER_WORD) - offset - 1)));
+    cspace->bitmap[base] |= BIT((BITS_PER_WORD) - offset - 1);
+}
 
 int _cspace_single_level_csa(struct allocman *alloc, void *_cspace, cspacepath_t *slots, size_t num_bits)
 {
@@ -147,6 +191,5 @@ int _cspace_single_level_pool(struct allocman *alloc, void *_cspace, seL4_CPtr s
     
     return (slot - cspace->config.first_slot) < cspace->contiguous_limit;
 }
-
 
 #endif

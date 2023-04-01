@@ -9,10 +9,11 @@
 #include <sel4/types.h>
 #include <allocman/properties.h>
 #include <vka/cspacepath_t.h>
+#include <stddef.h>
 
 struct allocman;
 
-#ifndef CONFIG_LAMP
+#if 0
 
 typedef struct cspace_interface {
     int (*alloc)(struct allocman *alloc, void *cookie, cspacepath_t *path);
