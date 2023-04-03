@@ -55,9 +55,17 @@ struct vbt_tree {
     struct vbt_bitmap sub_trees[32];
 };
 
+typedef struct tcookie {
+    seL4_CPtr cptr;
+    struct vbt_tree *tptr;
+    struct tcookie *prev;
+    struct tcookie *next;
+} tcookie_t;
+
 struct vbt_forrest {
     struct vbt_tree *mem_treeList[11];
     struct vbt_tree *empty;
+    tcookie_t *tcookieList;
 };
 
 typedef struct vbt_forrest vbt_pool_t;

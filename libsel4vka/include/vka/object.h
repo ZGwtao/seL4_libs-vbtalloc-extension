@@ -50,7 +50,7 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
 //!#else
 //!
     if (paddr == VKA_NO_PADDR && can_use_dev == false &&
-        type == seL4_RISCV_4K_Page) {
+        type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
         /**
          * path = dest, so use it to receive the cspacepath of pre-allocated object,
          * and since it's pre-allocated, there shall not be any origin untyped that
@@ -65,16 +65,9 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
                 result->type = type;
                 result->size_bits = size_bits;
                 result->cptr = path.capPtr;
-                //!printf("acq-capPtr-from-pool: %ld\n", path.capPtr);
                 return error;
             }
         }
-        //ZF_LOGE("Error occur when trying allocating Frame of size %lu from pool, error %d",
-        //         BIT(size_bits), error);
-        //while(1);
-        //!
-        //!FIXME: ERROR_POOL NEEDED ?
-        //!
     }
 
 #endif
@@ -142,7 +135,6 @@ static inline seL4_CPtr vka_alloc_object_leaky(vka_t *vka, seL4_Word type, seL4_
 static inline void vka_free_capability(vka_t *vka, seL4_CPtr cptr)
 {
     if (vka_cspace_is_from_pool(vka, cptr)) {
-        //!printf("free-capPtr-from-pool: %ld\n", cptr);
         /**
          * Do nothing because pre-allocated objects in pool
          * should not be freed. Like pre-allocated frames,
@@ -152,7 +144,6 @@ static inline void vka_free_capability(vka_t *vka, seL4_CPtr cptr)
          * not be freed because of future potential reuse.
          */
         vka_utspace_try_free_from_pool(vka, cptr);
-        //printf("No need\n");
         return;
     }
     cspacepath_t path;
@@ -163,7 +154,6 @@ static inline void vka_free_capability(vka_t *vka, seL4_CPtr cptr)
     }
     seL4_CNode_Delete(path.root, path.capPtr, path.capDepth);
     vka_cspace_free(vka, cptr);
-    //!printf("free-capPtr: %ld\n", cptr);
 }
 
 static inline void vka_free_arch_object(vka_t *vka, vka_object_t *object)
