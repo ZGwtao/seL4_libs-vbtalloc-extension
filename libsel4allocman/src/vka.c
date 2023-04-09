@@ -184,12 +184,13 @@ static int am_vka_utspace_try_alloc_from_pool(void *data, seL4_Word type, seL4_W
     int error = 1;
 
     if (paddr == ALLOCMAN_NO_PADDR) {
-
         /* allocman uses the size in memory internally, where as vka expects size_bits
         * as passed to Untyped_Retype, so do a conversion here */
-        size_bits = vka_get_object_size(type, size_bits);
-
-        error = allocman_utspace_try_alloc_from_pool((allocman_t *)data, type, size_bits, ALLOCMAN_NO_PADDR, false, res);
+        seL4_Word actual_size = vka_get_object_size(type, size_bits);
+        if (actual_size != size_bits && type == kobject_get_type(KOBJECT_FRAME, 12)) {
+            actual_size = size_bits;
+        }
+        error = allocman_utspace_try_alloc_from_pool((allocman_t *)data, type, actual_size, ALLOCMAN_NO_PADDR, false, res);
 
     } else {
         /* Not implemented yet. */

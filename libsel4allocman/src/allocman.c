@@ -460,10 +460,13 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
         }
     } else {
         for (int i = 32; i < 64 && !(res->sublevel); ++i) {
-            if (VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
+            if (VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i)))
+            {
                 subl = &tree->sub_trees[BITMAP_SUB_OFFSET(i)];
+                
                 int base = VBT_SUBLEVEL_INDEX(size_bits);
                 int avail = CLZL(MASK((BITMAP_SIZE) - base) & (subl->tnode[0]));
+                
                 if (avail < base * 2) {
                     res->toplevel = i;
                     res->sublevel = avail;
@@ -473,8 +476,19 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
     }
 }
 
-seL4_CPtr vbt_tree_acq_cap_idx(struct vbt_tree *tree, const vbtspacepath_t *path) {
-    return (path->sublevel - 32) + (path->toplevel - 32) * 32;
+seL4_CPtr vbt_tree_acq_cap_idx(struct vbt_tree *tree, const vbtspacepath_t *path)
+{
+    if (path->sublevel == 0) {
+        int lv_size = BITMAP_DEPTH - BITMAP_GET_LEVEL(path->toplevel) + BITMAP_LEVEL;
+        int lv_base = BIT(BITMAP_GET_LEVEL(path->toplevel)-1);
+        int lv_offs = path->toplevel - lv_base;
+        return lv_offs * BIT(lv_size);
+    } else {
+        int lv_size = BITMAP_DEPTH - BITMAP_GET_LEVEL(path->sublevel);
+        int lv_base = BIT(BITMAP_GET_LEVEL(path->sublevel)-1);
+        int lv_offs = path->sublevel - lv_base;
+        return lv_offs * BIT(lv_size) + (path->toplevel - 32) * 32;
+    }
 }
 
 void vbt_tree_restore_blk_from_bitmap(void *_bitmap, int index) {
@@ -492,6 +506,10 @@ void vbt_tree_restore_blk_from_bitmap(void *_bitmap, int index) {
     size_t dtc = VBT_INDEX_BIT(idx);
     while(idx) {
         bitmap->tnode[0] |= dtc;
+        buddy = idx % 2 ? idx - 1 : idx + 1;
+        if (!VBT_AND(bitmap->tnode[0], VBT_INDEX_BIT(buddy))) {
+            return;
+        }
         idx >>= 1;
         if (idx == 0) break;
         dtc = VBT_INDEX_BIT(idx);
@@ -595,17 +613,25 @@ void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
         if (subl->tnode[0] == MASK(63) &&
             subl->tnode[0] == tree->sub_trees[BITMAP_SUB_OFFSET(buddy_tree_index)].tnode[0])
         {
-            int idx = path->toplevel;
+            topl->tnode[0] |= (VBT_INDEX_BIT(sublv_tree_index));
+            topl->tnode[0] |= (VBT_INDEX_BIT(buddy_tree_index));
+
+            int buddy;
+            int idx = path->toplevel >> 1;
             size_t dtc = VBT_INDEX_BIT(idx);
             while(idx) {
                 topl->tnode[0] |= dtc;
+                buddy = idx % 2 ? idx - 1 : idx + 1;
+                if (!VBT_AND(topl->tnode[0], VBT_INDEX_BIT(buddy))) {
+                    goto x;
+                }
                 idx >>= 1;
                 if (idx == 0) break;
                 dtc = VBT_INDEX_BIT(idx);
-            }
-            topl->tnode[0] |= (VBT_INDEX_BIT(path->toplevel));            
+            }           
         }
     }
+x:
     vbt_tree_update_avail_size(tree);
 }
 
@@ -638,8 +664,14 @@ void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
         }
     } else {
         *treeList = tree;
-        assert(tree->next == NULL);
-        assert(tree->prev == NULL);
+        if (tree->next) {
+            tree->next->prev = tree->prev;
+        }
+        if (tree->prev) {
+            tree->prev->next = tree->next;
+        }
+        tree->next = NULL;
+        tree->prev = NULL;
     }
 }
 
@@ -655,71 +687,84 @@ void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
 
     assert(curr == tree);
 
-    if (head == curr) {
-        *treeList = NULL;
-        return;
-    }
-    
     if (curr->prev != NULL) {
         curr->prev->next = curr->next;
     }
     if (curr->next != NULL) {
         curr->next->prev = curr->prev;
     }
+    if (head == curr) {
+        *treeList = curr->next;
+    }
     curr->next = NULL;
     curr->prev = NULL;
+    return;
 }
 
 void vbt_tree_debug_print(struct vbt_tree *tree) {
     printf("\n>> cur-blk-size: %ld\n", tree->blk_cur_size);
+    printf(">> pool_range: %ld\n", tree->pool_range.capPtr);
     printf("top-level: [%016llx]\n", tree->top_tree.tnode[0]);
     for (int i = 0; i < 32; ++i) {
-        printf("sublv[%2d]: [%016llx]\n", i, tree->sub_trees[i].tnode[0]);
+        printf("sublv[%2d]: [%016llx] ", i, tree->sub_trees[i].tnode[0]);
+        if ((i + 1) % 4 == 0 && i) {
+            printf("\n");
+        }
     }
     printf("\n");
 }
 
-int vbt_tree_acquire_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res)
+int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res)
 {
-    size_t size_bits = real_size - 12;
-    assert(size_bits == 0);
-
-    int i = 0;
-    for (; !pool->mem_treeList[i] && i < 11; ++i);
-    if (i == 11) {
+    size_t size_bits = real_size - seL4_PageBits;
+    assert(size_bits >= 0);
+    int target_level = size_bits;
+    struct vbt_tree *tree = pool->mem_treeList[target_level];
+    for (int i = target_level + 1; !tree && i < 11; ++i) {
+        tree = pool->mem_treeList[i];
+    }
+    struct vbt_tree *old = tree;
+    if (!tree) {
+        /* Unable to find avail tree currently */
         return 1;
     }
 
-    struct vbt_tree *tree = pool->mem_treeList[i];
     size_t curr_blk_size = tree->blk_cur_size;
     vbtspacepath_t blk = {0, 0};
     
-    vbt_tree_query_blk(tree, 12, &blk, ALLOCMAN_NO_PADDR);
-
+    vbt_tree_query_blk(tree, real_size, &blk, ALLOCMAN_NO_PADDR);
     *res = vbt_tree_acq_cap_idx(tree, &blk) + tree->pool_range.capPtr;    
-
     vbt_tree_release_blk_from_vbt_tree(tree, &blk);
 
     if (tree->blk_cur_size == curr_blk_size) {
         return 0;
     }
-
-//!DEBUG:
-    //!vbt_tree_debug_print(tree);
-
     vbt_tree_list_remove(&pool->mem_treeList[curr_blk_size - 12], tree);
-    
     if (tree->blk_cur_size != 0) {
         vbt_tree_list_insert(&pool->mem_treeList[tree->blk_cur_size - 12], tree);
         return 0;
     }
 
     if (pool->empty) {
-        pool->empty->next = tree;
-        tree->prev = pool->empty;
+        struct vbt_tree *scanner = pool->empty;
+        for (; scanner->next; scanner = scanner->next);
+        scanner->next = tree;
+        if (tree->prev) {
+            tree->prev->next = tree->next;
+        }
+        if (tree->next) {
+            tree->next->prev = tree->prev;
+        }
+        tree->prev = scanner;
         tree->next = NULL;
     } else {
         pool->empty = tree;
+        if (tree->next) {
+            tree->next->prev = tree->prev;
+        }
+        if (tree->prev) {
+            tree->prev->next = tree->next;
+        }
         tree->next = NULL;
         tree->prev = NULL;
     }
@@ -804,15 +849,8 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         return 1;
     }
 
-    if (size_bits != 12) {
-        //ZF_LOGE("Frame type other than 4k not implemented yet.");
-        return 1;
-    }
-
     seL4_CPtr slot;
-
-    while (vbt_tree_acquire_frame_from_pool(&alloc->frame_pool, size_bits, &slot)) {
-        /* Failed to acquire pre-allocated frame from pool */
+    while (vbt_tree_acquire_multiple_frame_from_pool(&alloc->frame_pool, size_bits, &slot)) {
 
         struct vbt_tree *nt = NULL;
         cspacepath_t src_slot;
@@ -868,7 +906,10 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
     }
 
     *res = allocman_cspace_make_path(alloc, slot);
-    
+    if (size_bits != 12) {
+        res->window = BIT(size_bits - 12);
+    }
+
     return 0;
 }
 
@@ -880,42 +921,44 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
     
     for (; tck && cptr > (tck->cptr + 1023); tck = tck->next);
 
-    assert(tck);
     assert(cptr >= tck->cptr);
     assert(cptr < tck->cptr + 1024);
 
     struct vbt_tree *target = tck->tptr;
     size_t blk_cur_size = target->blk_cur_size;
-    if (blk_cur_size == 0) {
-        if (alloc->frame_pool.empty == target) {
-            alloc->frame_pool.empty = target->next;
-        } else {
-            if (target->prev) {
-                target->prev->next = target->next;
-            }
-            if (target->next) {
-                target->next->prev = target->prev;
-            }
-            target->prev = NULL;
-            target->next = NULL;
-        }
-    }
-
     size_t global = cptr - target->pool_range.capPtr;
     vbtspacepath_t blk = {
-        32 + global / 64,
-        32 + global % 64
+        32 + global / 32,
+        32 + global % 32
     };
 
     vbt_tree_restore_blk_from_vbt_tree(target, &blk);
-    
-    if (blk_cur_size && blk_cur_size != target->blk_cur_size) {
+
+    if (blk_cur_size != target->blk_cur_size) {
         assert(blk_cur_size < target->blk_cur_size);
         assert(blk_cur_size <= 22);
-
-    //!DEBUG:
-        //!vbt_tree_debug_print(target);
-        vbt_tree_list_remove(&alloc->frame_pool.mem_treeList[blk_cur_size - 12], target);
+        if (blk_cur_size) {
+            vbt_tree_list_remove(&alloc->frame_pool.mem_treeList[blk_cur_size - 12], target);
+        } else {
+            struct vbt_tree *scanner = alloc->frame_pool.empty;
+            for (; scanner->next && scanner != target; scanner = scanner->next);
+            if (scanner == target) {
+                if (scanner->prev) {
+                    scanner->prev->next = scanner->next;
+                }
+                if (scanner->next) {
+                    scanner->next->prev = scanner->prev;
+                }
+                scanner->next = NULL;
+                scanner->prev = NULL;
+                if (target == alloc->frame_pool.empty) {
+                    alloc->frame_pool.empty = NULL;
+                }
+            } else {
+                ZF_LOGE("Internal allocman error: unmatched tree pointer");
+                assert(0);
+            }
+        }
         vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[target->blk_cur_size - 12], target);
     }
 }

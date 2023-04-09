@@ -50,7 +50,8 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
 //!#else
 //!
     if (paddr == VKA_NO_PADDR && can_use_dev == false &&
-        type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
+        type == seL4_RISCV_4K_Page) {
+        //type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
         /**
          * path = dest, so use it to receive the cspacepath of pre-allocated object,
          * and since it's pre-allocated, there shall not be any origin untyped that
@@ -164,7 +165,30 @@ static inline void vka_free_arch_object(vka_t *vka, vka_object_t *object)
 static inline void vka_free_object(vka_t *vka, vka_object_t *object)
 {
     if (object->type == kobject_get_type(KOBJECT_FRAME, 12)) {
-        vka_free_arch_object(vka, object);
+        if (object->size_bits > 12) {
+            int frame_num = BIT(object->size_bits - 12);
+            //printf("  frame_num: %ld\n");
+            if (vka_cspace_is_from_pool(vka, object->cptr)) {
+                seL4_CPtr frame_start = object->cptr;
+                for (int i = 0; i < frame_num; ++i) {
+                    //printf("  pool-capPtr: %ld\n", frame_start + i);
+                    assert(vka_cspace_is_from_pool(vka, frame_start + i));
+                    vka_utspace_try_free_from_pool(vka, frame_start + i);
+                }
+            //} else {
+            //    cspacepath_t fs_path;
+            //    vka_cspace_make_path(vka, object->cptr, &fs_path);
+            //    for (int i = 0; i < frame_num; ++i) {
+            //        //printf("  ordi-capPtr: %ld\n", object->cptr + i);
+            //        seL4_CNode_Delete(fs_path.root, fs_path.capPtr + i, fs_path.capDepth);
+            //        vka_cspace_free(vka, object->cptr + i);
+            //    }
+            } else {
+                assert(0);
+            }
+        } else {
+            vka_free_arch_object(vka, object);
+        }
         return;
     }
     vka_free_capability(vka, object->cptr);
@@ -291,6 +315,40 @@ static inline int vka_alloc_frame_at(vka_t *vka, uint32_t size_bits, uintptr_t p
     return vka_alloc_object_at(vka, kobject_get_type(KOBJECT_FRAME, size_bits), size_bits,
                                paddr, result);
 }
+
+#ifdef CONFIG_LAMP
+
+static inline int vka_alloc_frame_contiguous(vka_t *vka, uint32_t blk_size_bits, int *frame_num,
+                                             vka_object_t *blk_metadata)
+{
+    int error = -1;
+
+    if (blk_size_bits > 22) {
+        ZF_LOGE("Large block allocation not implemented yet (upmost: 4M)");
+        return error;
+    }
+
+    assert(blk_size_bits >= 12);
+
+    cspacepath_t blk;
+    seL4_Word type = kobject_get_type(KOBJECT_FRAME, 12);
+    error = vka_utspace_try_alloc_from_pool(vka, type, blk_size_bits, VKA_NO_PADDR, false, &blk);
+    if (error) {
+        ZF_LOGE("Failed to alloc contiguous frames from pool in full");
+        return error;
+    }
+    
+    blk_metadata->cptr = blk.capPtr;
+    blk_metadata->size_bits = blk_size_bits;
+    blk_metadata->type = type;
+    blk_metadata->ut = 0;
+
+    *frame_num = blk.window;
+
+    return 0;
+}
+
+#endif
 
 static inline int vka_alloc_page_directory(vka_t *vka, vka_object_t *result)
 {
