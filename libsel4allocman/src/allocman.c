@@ -328,8 +328,11 @@ void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree);
 void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree);
 int vbt_tree_acquire_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res);
 
-static inline int vbt_tree_ibidx_at(int target_layer, int index) {
-    return (1ul<<(target_layer - BITMAP_GET_LEVEL(index)))*index;
+static inline int vbt_tree_window_at_level(int target_layer, int index) {
+    //if (index >= 32) {
+    //    assert(0);
+    //}
+    return 1ul << (target_layer - BITMAP_GET_LEVEL(index));
 }
 
 static size_t vbt_tree_sub_add_up(int index)
@@ -396,11 +399,12 @@ void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t padd
         tree->entry.toplevel = VBT_TOPLEVEL_INDEX(size_bits);
         tree->top_tree.tnode[0] |= VBT_INDEX_BIT(tree->entry.toplevel);
         tree->top_tree.tnode[0] |= vbt_tree_sub_add_up(tree->entry.toplevel);
-        int idx = vbt_tree_ibidx_at(BITMAP_DEPTH, tree->entry.toplevel);
-        for (int i = idx; i < idx << 1; ++i) {
+        int window = vbt_tree_window_at_level(BITMAP_DEPTH, tree->entry.toplevel);
+        int idx = BITMAP_SUB_OFFSET(window * tree->entry.toplevel);
+        for (int i = idx; i < idx + window; ++i) {
             if (VBT_AND(tree->top_tree.tnode[0], VBT_INDEX_BIT(i))) {
-                tree->sub_trees[BITMAP_SUB_OFFSET(i)].tnode[0] = (size_t)-1;
-                tree->sub_trees[BITMAP_SUB_OFFSET(i)].tnode[0] &= MASK(63);
+                tree->sub_trees[i].tnode[0] = (size_t)-1;
+                tree->sub_trees[i].tnode[0] &= MASK(63);
             }
         }
     }
@@ -563,10 +567,11 @@ void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
 
     if (!path->sublevel) {
         vbt_tree_release_blk_from_bitmap(topl, path->toplevel);
-        int idx_sub_tree = vbt_tree_ibidx_at(BITMAP_DEPTH, path->toplevel);
-        for (int i = idx_sub_tree; i < idx_sub_tree << 1; ++i) {
+        int window = vbt_tree_window_at_level(BITMAP_DEPTH, path->toplevel);
+        int sti = BITMAP_SUB_OFFSET(window * path->toplevel);
+        for (int i = sti; i < sti + window; ++i) {
             if (!VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
-                tree->sub_trees[BITMAP_SUB_OFFSET(i)].tnode[0] = 0ul;
+                tree->sub_trees[i].tnode[0] = 0ul;
             }
         }
     } else {
@@ -596,10 +601,11 @@ void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
 
     if (!path->sublevel) {
         vbt_tree_restore_blk_from_bitmap(topl, path->toplevel);
-        int idx_sub_tree = vbt_tree_ibidx_at(BITMAP_DEPTH, path->toplevel);
-        for (int i = idx_sub_tree; i < idx_sub_tree << 1; ++i) {
+        int window = vbt_tree_window_at_level(BITMAP_DEPTH, path->toplevel);
+        int sti = BITMAP_SUB_OFFSET(window * path->toplevel);
+        for (int i = sti; i < sti + window; ++i) {
             if (!VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
-                tree->sub_trees[BITMAP_SUB_OFFSET(i)].tnode[0] = MASK(63) & (size_t)-1;
+                tree->sub_trees[i].tnode[0] = MASK(63) & (size_t)-1;
             }
         }
     } else {
@@ -675,6 +681,48 @@ void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
     }
 }
 
+void tree_list_debug_print(struct vbt_tree **treeList, struct vbt_tree *empty) {
+    for (int i = 0; i < 11; ++i) {
+        printf("treelist[%d]: ", i);
+        for (struct vbt_tree *tree = treeList[i]; tree; tree = tree->next) {
+            if (tree) {
+                //printf(" < vaddr: %016llx capPtr: [%ld] vaddr: %016llx ", &tree->pool_range,
+                //                    tree->pool_range.capPtr, &tree->sub_trees[31]);
+                printf(" < capPtr: [%ld] ", tree->pool_range.capPtr);
+                if (tree->prev) {
+                    printf(" prev: {%ld} ", tree->prev->pool_range.capPtr);
+                }
+                if (tree->next) {
+                    printf(" next: {%ld} ", tree->next->pool_range.capPtr);
+                }
+                printf("> ");
+                //tree_debug_print(tree);
+            }
+        }
+        printf("\n");
+    }
+    printf("\n [EmptyList] >>>> : \n");
+    for (struct vbt_tree *tree = empty; tree; tree = tree->next) {
+        if (tree) {
+            //printf(" < vaddr: %016llx capPtr: [%ld] vaddr: %016llx ", &tree->pool_range,
+            //                        tree->pool_range.capPtr, &tree->sub_trees[31]);
+            printf("   < capPtr: [%ld] ", tree->pool_range.capPtr);
+            if (tree->prev) {
+                printf(" prev: {%ld} ", tree->prev->pool_range.capPtr);
+            }
+            if (tree->next) {
+                printf(" next: {%ld} ", tree->next->pool_range.capPtr);
+            }
+            printf("> \n");
+            //printf(" [%ld] ", tree->pool_range.capPtr);
+            //if (tree->pool_range.capPtr == 0) {
+            //    vbt_tree_debug_print(tree);
+            //}
+        }
+    }
+    printf("\n");
+}
+
 void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
 {
     assert(tree);
@@ -702,7 +750,7 @@ void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
 }
 
 void vbt_tree_debug_print(struct vbt_tree *tree) {
-    printf("\n>> cur-blk-size: %ld\n", tree->blk_cur_size);
+    printf(">> cur-blk-size: %ld\n", tree->blk_cur_size);
     printf(">> pool_range: %ld\n", tree->pool_range.capPtr);
     printf("top-level: [%016llx]\n", tree->top_tree.tnode[0]);
     for (int i = 0; i < 32; ++i) {
@@ -711,7 +759,6 @@ void vbt_tree_debug_print(struct vbt_tree *tree) {
             printf("\n");
         }
     }
-    printf("\n");
 }
 
 int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res)
@@ -748,13 +795,13 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
     if (pool->empty) {
         struct vbt_tree *scanner = pool->empty;
         for (; scanner->next; scanner = scanner->next);
-        scanner->next = tree;
         if (tree->prev) {
             tree->prev->next = tree->next;
         }
         if (tree->next) {
             tree->next->prev = tree->prev;
         }
+        scanner->next = tree;
         tree->prev = scanner;
         tree->next = NULL;
     } else {
@@ -949,11 +996,11 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
                 if (scanner->next) {
                     scanner->next->prev = scanner->prev;
                 }
+                if (target == alloc->frame_pool.empty) {
+                    alloc->frame_pool.empty = target->next;
+                }
                 scanner->next = NULL;
                 scanner->prev = NULL;
-                if (target == alloc->frame_pool.empty) {
-                    alloc->frame_pool.empty = NULL;
-                }
             } else {
                 ZF_LOGE("Internal allocman error: unmatched tree pointer");
                 assert(0);
