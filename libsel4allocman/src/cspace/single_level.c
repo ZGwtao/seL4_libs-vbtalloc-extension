@@ -188,8 +188,7 @@ int _cspace_single_level_csa(struct allocman *alloc, void *_cspace, cspacepath_t
 int _cspace_single_level_pool(struct allocman *alloc, void *_cspace, seL4_CPtr slot)
 {
     cspace_single_level_t *cspace = (cspace_single_level_t *)_cspace;
-    
-    return (slot - cspace->config.first_slot) < cspace->contiguous_limit;
+    return (slot - cspace->config.first_slot) < cspace->contiguous_limit * BITS_PER_WORD;
 }
 
 #endif
