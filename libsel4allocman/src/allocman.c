@@ -351,7 +351,6 @@ void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t padd
                    seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size)
 {
     tree->paddr = paddr;
-
     tree->entry.toplevel = 0;
     tree->entry.sublevel = 0;
 
@@ -648,8 +647,8 @@ void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
     if (*treeList) {
         struct vbt_tree *curr = *treeList;
         struct vbt_tree *head = *treeList;
-        for (; curr && curr->next && curr->next->paddr < tree->paddr; curr = curr->next);
-        if (curr->paddr < tree->paddr) {
+        for (; curr && curr->next && curr->next->pool_range.capPtr < tree->pool_range.capPtr; curr = curr->next);
+        if (curr->pool_range.capPtr < tree->pool_range.capPtr) {
             tree->prev = curr;
             if (curr->next) {
                 tree->next = curr->next;
@@ -657,19 +656,18 @@ void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
             }
             curr->next = tree;
         } else {
-            assert(curr->paddr > tree->paddr);
+            assert(curr->pool_range.capPtr > tree->pool_range.capPtr);
             tree->next = curr;
             if (curr->prev) {
                 tree->prev = curr->prev;
                 curr->prev->next = tree;
             }
             curr->prev = tree;
-            if (head->paddr > tree->paddr) {
+            if (head->pool_range.capPtr > tree->pool_range.capPtr) {
                 *treeList = tree;
             }
         }
     } else {
-        *treeList = tree;
         if (tree->next) {
             tree->next->prev = tree->prev;
         }
@@ -678,6 +676,7 @@ void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
         }
         tree->next = NULL;
         tree->prev = NULL;
+        *treeList = tree;
     }
 }
 
@@ -883,6 +882,24 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, struct vbt_tree *
             alloc->frame_pool.tcookieList = tck;
         }
     }
+
+    //tree_list_debug_print(alloc->frame_pool.mem_treeList, alloc->frame_pool.empty);
+    //for (int i = 0; i < 11; ++i) {
+    //    printf("treelist[%d]: ", i);
+    //    for (struct vbt_tree *t = alloc->frame_pool.mem_treeList[i]; t; t = t->next) {
+    //        if (t) {
+    //            printf(" < capPtr: [%ld] ", t->pool_range.capPtr);
+    //            if (t->prev) {
+    //                 printf(" prev: {%ld} ", t->prev->pool_range.capPtr);
+    //            }
+    //            if (t->next) {
+    //                printf(" next: {%ld} ", t->next->pool_range.capPtr);
+    //            }
+    //            printf("paddr: %016llx>\n", t->paddr);
+    //        }
+    //    }
+    //    printf("\n");
+    //}
 
     return 0;
 }
