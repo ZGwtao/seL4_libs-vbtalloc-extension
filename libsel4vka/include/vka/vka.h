@@ -89,19 +89,6 @@ typedef int (*vka_utspace_alloc_maybe_device_fn)(void *data, const cspacepath_t 
 
 #ifdef CONFIG_LAMP
 
-/**
- * Allocate a portion of an untyped into an object, if the object is already allocated,
- * just return its CPtr through @arg: dest
- * 
- * @param data cookie for the underlying allocator
- * @param dest path to an empty cslot to place the cap to the allocated object
- * @param type the seL4 object type to allocate (as passed to Untyped_Retype)
- * @param size_bits the size of the object to allocate (as passed to Untyped_Retype)
- * @param paddr The desired physical address that this object should start at
- * @param can_use_dev whether the allocator can use device untyped instead of regular untyped
- * @param res pointer to a location to store the cookie representing this allocation
- * @return 0 on success
- */
 typedef int (*vka_utspace_try_alloc_from_pool_fn)(void *data, seL4_Word type, seL4_Word size_bits,
                                                   uintptr_t paddr, bool can_use_dev, cspacepath_t *res);
 typedef void (*vka_utspace_try_free_from_pool_fn)(void *data, seL4_CPtr cptr);

@@ -45,20 +45,8 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
     cspacepath_t path;
 
 #ifdef CONFIG_LAMP
-//!
-//!DEBUG: BENCHMARKING
-//!#else
-//!
     if (paddr == VKA_NO_PADDR && can_use_dev == false &&
-        type == seL4_RISCV_4K_Page) {
-        //type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
-        /**
-         * path = dest, so use it to receive the cspacepath of pre-allocated object,
-         * and since it's pre-allocated, there shall not be any origin untyped that
-         * had the same size as the target object ..., so we can use result->ut = -1
-         * to denode that it was pre-allocated from the untyped allocator.
-         */
-
+        type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
         error = vka_utspace_try_alloc_from_pool(vka, type, size_bits, paddr, can_use_dev, &path);
         if (error == 0) {
             if (path.capPtr) {
@@ -70,9 +58,7 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
             }
         }
     }
-
 #endif
-    
     error = vka_cspace_alloc(vka, &result->cptr);
     if (unlikely(error)) {
         result->cptr = 0;
@@ -167,22 +153,12 @@ static inline void vka_free_object(vka_t *vka, vka_object_t *object)
     if (object->type == kobject_get_type(KOBJECT_FRAME, 12)) {
         if (object->size_bits > 12) {
             int frame_num = BIT(object->size_bits - 12);
-            //printf("  frame_num: %ld\n");
             if (vka_cspace_is_from_pool(vka, object->cptr)) {
                 seL4_CPtr frame_start = object->cptr;
                 for (int i = 0; i < frame_num; ++i) {
-                    //printf("  pool-capPtr: %ld\n", frame_start + i);
                     assert(vka_cspace_is_from_pool(vka, frame_start + i));
                     vka_utspace_try_free_from_pool(vka, frame_start + i);
                 }
-            //} else {
-            //    cspacepath_t fs_path;
-            //    vka_cspace_make_path(vka, object->cptr, &fs_path);
-            //    for (int i = 0; i < frame_num; ++i) {
-            //        //printf("  ordi-capPtr: %ld\n", object->cptr + i);
-            //        seL4_CNode_Delete(fs_path.root, fs_path.capPtr + i, fs_path.capDepth);
-            //        vka_cspace_free(vka, object->cptr + i);
-            //    }
             } else {
                 assert(0);
             }

@@ -39,7 +39,7 @@ int cspace_single_level_create(struct allocman *alloc, cspace_single_level_t *cs
             cspace->bitmap[num_entries - 1] ^= BIT(i);
         }
     }
-#if 1
+#ifdef CONFIG_LAMP
     cspace->last_entry = num_entries / 2;
     cspace->contiguous_limit = num_entries / 2;
     cspace->contiguous_watermark = 0;
@@ -70,7 +70,7 @@ int _cspace_single_level_alloc_at(allocman_t *alloc, void *_cspace, seL4_CPtr sl
     return 0;
 }
 
-#if 0
+#ifndef CONFIG_LAMP
 
 int _cspace_single_level_alloc(allocman_t *alloc, void *_cspace, cspacepath_t *slot)
 {

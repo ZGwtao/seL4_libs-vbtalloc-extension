@@ -13,26 +13,14 @@
 
 struct allocman;
 
-#if 0
-
 typedef struct cspace_interface {
     int (*alloc)(struct allocman *alloc, void *cookie, cspacepath_t *path);
-    void (*free)(struct allocman *alloc, void *cookie, const cspacepath_t *path);
-    cspacepath_t (*make_path)(void *cookie, seL4_CPtr slot);
-    struct allocman_properties properties;
-    void *cspace;
-} cspace_interface_t;
-
-#else
-
-typedef struct cspace_interface {
-    int (*alloc)(struct allocman *alloc, void *cookie, cspacepath_t *path);
+#ifdef CONFIG_LAMP
     int (*csa)(struct allocman *alloc, void *cookie, cspacepath_t *path, size_t num_bits);
+    int (*pool)(struct allocman *alloc, void *_cspace, seL4_CPtr slot);
+#endif
     void (*free)(struct allocman *alloc, void *cookie, const cspacepath_t *path);
     cspacepath_t (*make_path)(void *cookie, seL4_CPtr slot);
-    int (*pool)(struct allocman *alloc, void *_cspace, seL4_CPtr slot);
     struct allocman_properties properties;
     void *cspace;
 } cspace_interface_t;
-
-#endif

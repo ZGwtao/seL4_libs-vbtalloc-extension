@@ -55,9 +55,6 @@ static inline struct utspace_interface utspace_split_make_interface(utspace_spli
         .free = _utspace_split_free,
         .add_uts = _utspace_split_add_uts,
         .paddr = _utspace_split_paddr,
-#ifdef CONFIG_LAMP
-        .pool = NULL,
-#endif
         .properties = ALLOCMAN_DEFAULT_PROPERTIES,
         .utspace = split
     };

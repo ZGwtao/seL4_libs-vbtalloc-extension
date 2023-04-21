@@ -44,9 +44,6 @@ static inline struct utspace_interface utspace_twinkle_make_interface(utspace_tw
         .free = _utspace_twinkle_free,
         .add_uts = _utspace_twinkle_add_uts,
         .paddr = _utspace_twinkle_paddr,
-#ifdef CONFIG_LAMP
-        .pool = NULL,
-#endif
         .properties = ALLOCMAN_DEFAULT_PROPERTIES,
         .utspace = twinkle
     };

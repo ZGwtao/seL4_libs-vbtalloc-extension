@@ -329,9 +329,6 @@ void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree);
 int vbt_tree_acquire_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res);
 
 static inline int vbt_tree_window_at_level(int target_layer, int index) {
-    //if (index >= 32) {
-    //    assert(0);
-    //}
     return 1ul << (target_layer - BITMAP_GET_LEVEL(index));
 }
 
@@ -353,9 +350,7 @@ void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t padd
     tree->paddr = paddr;
     tree->entry.toplevel = 0;
     tree->entry.sublevel = 0;
-
     cspacepath_t origin_path = allocman_cspace_make_path(alloc, origin);
-
     tree->origin.capPtr = origin_path.capPtr;
     tree->origin.capDepth = origin_path.capDepth;
     tree->origin.dest = origin_path.dest;
@@ -363,7 +358,6 @@ void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t padd
     tree->origin.offset = origin_path.offset;
     tree->origin.root = origin_path.root;
     tree->origin.window = origin_path.window;
-
     tree->pool_range.capPtr = dest_reg.capPtr;
     tree->pool_range.capDepth = dest_reg.capDepth;
     tree->pool_range.dest = dest_reg.dest;
@@ -371,23 +365,16 @@ void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t padd
     tree->pool_range.offset = dest_reg.offset;
     tree->pool_range.root = dest_reg.root;
     tree->pool_range.window = dest_reg.window;
-
     tree->blk_max_size = real_size;
     tree->blk_cur_size = real_size;
-
     tree->next = NULL;
     tree->prev = NULL;
-
     tree->top_tree.tnode[0] = 0ul;
-
     for (size_t i = 0; i < 32; ++i) {
         tree->sub_trees[i].tnode[0] = 0ul;
     }
-
     size_t size_bits = real_size - VBT_PAGE_GRAIN;
-
     assert(size_bits && size_bits <= 10);
-    
     if (size_bits < BITMAP_LEVEL) {
         tree->entry.toplevel = 32;
         tree->entry.sublevel = VBT_SUBLEVEL_INDEX(size_bits);
@@ -422,11 +409,6 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
     assert(size_bits <= 11 && size_bits >= 0);
 
     if (paddr != ALLOCMAN_NO_PADDR) {
-    /**
-     * Is it necessary to cal all related value ?
-     * Maybe the only thing that we should do is seeing if
-     * the bit field value of blk in bitmap equals to TRUE or not...
-     */
         int idx = 0;
         if (query_level) {
             for (uintptr_t i = tree->paddr; paddr > i + blk_size; i += blk_size, ++idx);
@@ -463,13 +445,10 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
         }
     } else {
         for (int i = 32; i < 64 && !(res->sublevel); ++i) {
-            if (VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i)))
-            {
+            if (VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
                 subl = &tree->sub_trees[BITMAP_SUB_OFFSET(i)];
-                
                 int base = VBT_SUBLEVEL_INDEX(size_bits);
                 int avail = CLZL(MASK((BITMAP_SIZE) - base) & (subl->tnode[0]));
-                
                 if (avail < base * 2) {
                     res->toplevel = i;
                     res->sublevel = avail;
@@ -609,18 +588,13 @@ void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
         }
     } else {
         subl = &tree->sub_trees[BITMAP_SUB_OFFSET(path->toplevel)];
-
         vbt_tree_restore_blk_from_bitmap(subl, path->sublevel);
-
         int sublv_tree_index = path->toplevel;
         int buddy_tree_index = sublv_tree_index % 2 ? sublv_tree_index - 1 : sublv_tree_index + 1;
-
         if (subl->tnode[0] == MASK(63) &&
-            subl->tnode[0] == tree->sub_trees[BITMAP_SUB_OFFSET(buddy_tree_index)].tnode[0])
-        {
+            subl->tnode[0] == tree->sub_trees[BITMAP_SUB_OFFSET(buddy_tree_index)].tnode[0]) {
             topl->tnode[0] |= (VBT_INDEX_BIT(sublv_tree_index));
             topl->tnode[0] |= (VBT_INDEX_BIT(buddy_tree_index));
-
             int buddy;
             int idx = path->toplevel >> 1;
             size_t dtc = VBT_INDEX_BIT(idx);
@@ -685,8 +659,6 @@ void tree_list_debug_print(struct vbt_tree **treeList, struct vbt_tree *empty) {
         printf("treelist[%d]: ", i);
         for (struct vbt_tree *tree = treeList[i]; tree; tree = tree->next) {
             if (tree) {
-                //printf(" < vaddr: %016llx capPtr: [%ld] vaddr: %016llx ", &tree->pool_range,
-                //                    tree->pool_range.capPtr, &tree->sub_trees[31]);
                 printf(" < capPtr: [%ld] ", tree->pool_range.capPtr);
                 if (tree->prev) {
                     printf(" prev: {%ld} ", tree->prev->pool_range.capPtr);
@@ -695,7 +667,6 @@ void tree_list_debug_print(struct vbt_tree **treeList, struct vbt_tree *empty) {
                     printf(" next: {%ld} ", tree->next->pool_range.capPtr);
                 }
                 printf("> ");
-                //tree_debug_print(tree);
             }
         }
         printf("\n");
@@ -703,8 +674,6 @@ void tree_list_debug_print(struct vbt_tree **treeList, struct vbt_tree *empty) {
     printf("\n [EmptyList] >>>> : \n");
     for (struct vbt_tree *tree = empty; tree; tree = tree->next) {
         if (tree) {
-            //printf(" < vaddr: %016llx capPtr: [%ld] vaddr: %016llx ", &tree->pool_range,
-            //                        tree->pool_range.capPtr, &tree->sub_trees[31]);
             printf("   < capPtr: [%ld] ", tree->pool_range.capPtr);
             if (tree->prev) {
                 printf(" prev: {%ld} ", tree->prev->pool_range.capPtr);
@@ -713,10 +682,6 @@ void tree_list_debug_print(struct vbt_tree **treeList, struct vbt_tree *empty) {
                 printf(" next: {%ld} ", tree->next->pool_range.capPtr);
             }
             printf("> \n");
-            //printf(" [%ld] ", tree->pool_range.capPtr);
-            //if (tree->pool_range.capPtr == 0) {
-            //    vbt_tree_debug_print(tree);
-            //}
         }
     }
     printf("\n");
@@ -771,7 +736,6 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
     }
     struct vbt_tree *old = tree;
     if (!tree) {
-        /* Unable to find avail tree currently */
         return 1;
     }
 
@@ -845,7 +809,6 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, struct vbt_tree *
 
     tcookie_t *tck = allocman_mspace_alloc(alloc, sizeof(tcookie_t), &error);
     if (error) {
-        //!
         return error;
     }
     tck->cptr = tree->pool_range.capPtr;
@@ -882,25 +845,6 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, struct vbt_tree *
             alloc->frame_pool.tcookieList = tck;
         }
     }
-
-    //tree_list_debug_print(alloc->frame_pool.mem_treeList, alloc->frame_pool.empty);
-    //for (int i = 0; i < 11; ++i) {
-    //    printf("treelist[%d]: ", i);
-    //    for (struct vbt_tree *t = alloc->frame_pool.mem_treeList[i]; t; t = t->next) {
-    //        if (t) {
-    //            printf(" < capPtr: [%ld] ", t->pool_range.capPtr);
-    //            if (t->prev) {
-    //                 printf(" prev: {%ld} ", t->prev->pool_range.capPtr);
-    //            }
-    //            if (t->next) {
-    //                printf(" next: {%ld} ", t->next->pool_range.capPtr);
-    //            }
-    //            printf("paddr: %016llx>\n", t->paddr);
-    //        }
-    //    }
-    //    printf("\n");
-    //}
-
     return 0;
 }
 
@@ -909,7 +853,6 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
 {
     int error;
     if (!alloc->have_utspace) {
-        //ZF_LOGE("No utspace provided.");
         return 1;
     }
 
@@ -930,7 +873,6 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
 
         cookie = allocman_utspace_alloc(alloc, 22, seL4_UntypedObject, &src_slot, false, &error);
         if (error) {
-            //ZF_LOGE("Failed to create untyped object from utspace allocator.");
             allocman_cspace_free(alloc, &src_slot);
             return error;
         }
@@ -964,7 +906,6 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
 
         error = _allocman_utspace_append_tcookie(alloc, nt);
         if (error) {
-            //
             return error;
         }
     }
