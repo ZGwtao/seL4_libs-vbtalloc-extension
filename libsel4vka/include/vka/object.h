@@ -44,7 +44,7 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
 
     cspacepath_t path;
 
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS
     if (paddr == VKA_NO_PADDR && can_use_dev == false &&
         type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
         error = vka_utspace_try_alloc_from_pool(vka, type, size_bits, paddr, can_use_dev, &path);
@@ -117,7 +117,7 @@ static inline seL4_CPtr vka_alloc_object_leaky(vka_t *vka, seL4_Word type, seL4_
     return vka_alloc_object(vka, type, size_bits, &result) == -1 ? 0 : result.cptr;
 }
 
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS
 
 static inline void vka_free_capability(vka_t *vka, seL4_CPtr cptr)
 {
@@ -292,7 +292,7 @@ static inline int vka_alloc_frame_at(vka_t *vka, uint32_t size_bits, uintptr_t p
                                paddr, result);
 }
 
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS
 
 static inline int vka_alloc_frame_contiguous(vka_t *vka, uint32_t blk_size_bits, int *frame_num,
                                              vka_object_t *blk_metadata)

@@ -87,7 +87,7 @@ typedef int (*vka_utspace_alloc_at_fn)(void *data, const cspacepath_t *dest, seL
 typedef int (*vka_utspace_alloc_maybe_device_fn)(void *data, const cspacepath_t *dest, seL4_Word type,
                                                  seL4_Word size_bits, bool can_use_dev, seL4_Word *res);
 
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS
 
 typedef int (*vka_utspace_try_alloc_from_pool_fn)(void *data, seL4_Word type, seL4_Word size_bits,
                                                   uintptr_t paddr, bool can_use_dev, cspacepath_t *res);
@@ -140,7 +140,7 @@ typedef struct vka {
     vka_cspace_free_fn cspace_free;
     vka_utspace_free_fn utspace_free;
     vka_utspace_paddr_fn utspace_paddr;
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS
     vka_utspace_try_alloc_from_pool_fn utspace_try_alloc_from_pool;
     vka_utspace_try_free_from_pool_fn utspace_try_free_from_pool;
     vka_cspace_is_from_pool_fn cspace_is_from_pool;
@@ -317,7 +317,7 @@ static inline uintptr_t vka_utspace_paddr(vka_t *vka, seL4_Word target, seL4_Wor
     return vka->utspace_paddr(vka->data, target, type, size_bits);
 }
 
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS
 
 /**
  * If we use it to allocate an object, we may probably not need to allocate a new cspace slot.
