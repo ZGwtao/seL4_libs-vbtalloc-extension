@@ -39,15 +39,9 @@ static void unmap_range(dma_man_t *dma, uintptr_t addr, size_t size)
                 cspacepath_t page_path;
                 assert(page);
                 vspace_unmap_pages(dma->iospaces + i, (void *)addr, 1, seL4_PageBits, NULL);
-
-#ifdef CONFIG_LAMP
-                vka_free_capability(&dma->vka, page);
-#else
                 vka_cspace_make_path(&dma->vka, page, &page_path);
                 vka_cnode_delete(&page_path);
                 vka_cspace_free(&dma->vka, page);
-#endif
-
                 free(cookie);
             }
         }
@@ -109,14 +103,8 @@ int sel4utils_iommu_dma_alloc_iospace(void *cookie, void *vaddr, size_t size)
                 reservation_t res = vspace_reserve_range_at(dma->iospaces + i, (void *)addr, PAGE_SIZE_4K, seL4_AllRights, 1);
                 if (!res.res) {
                     ZF_LOGE("Failed to create a reservation");
-
-#ifdef CONFIG_LAMP
-                    vka_free_capability(&dma->vka, copy_path.capPtr);
-#else
                     vka_cnode_delete(&copy_path);
                     vka_cspace_free(&dma->vka, copy_path.capPtr);
-#endif
-
                     unmap_range(dma, start, addr + 1);
                     return -1;
                 }
@@ -124,14 +112,8 @@ int sel4utils_iommu_dma_alloc_iospace(void *cookie, void *vaddr, size_t size)
                 if (!cookie) {
                     ZF_LOGE("Failed to malloc %zu bytes", sizeof(*cookie));
                     vspace_free_reservation(dma->iospaces + i, res);
-
-#ifdef CONFIG_LAMP
-                    vka_free_capability(&dma->vka, copy_path.capPtr);
-#else
                     vka_cnode_delete(&copy_path);
                     vka_cspace_free(&dma->vka, copy_path.capPtr);
-#endif
-
                     unmap_range(dma, start, addr + 1);
                     return -1;
                 }
@@ -142,14 +124,8 @@ int sel4utils_iommu_dma_alloc_iospace(void *cookie, void *vaddr, size_t size)
                     ZF_LOGE("Failed to map frame into iospace");
                     free(cookie);
                     vspace_free_reservation(dma->iospaces + i, res);
-
-#ifdef CONFIG_LAMP
-                    vka_free_capability(&dma->vka, copy_path.capPtr);
-#else
                     vka_cnode_delete(&copy_path);
                     vka_cspace_free(&dma->vka, copy_path.capPtr);
-#endif
-
                     unmap_range(dma, start, addr + 1);
                     return -1;
                 }

@@ -166,14 +166,10 @@ void platsupport_undo_serial_setup(void)
     setup_status = NOT_INITIALIZED;
     if (device_cap) {
         seL4_ARCH_Page_Unmap(device_cap);
-#ifdef CONFIG_LAMP
-        vka_free_capability(vka, device_cap);
-#else
         cspacepath_t path;
         vka_cspace_make_path(vka, device_cap, &path);
         vka_cnode_delete(&path);
         vka_cspace_free(vka, device_cap);
-#endif
         device_cap = 0;
         vka = NULL;
     }

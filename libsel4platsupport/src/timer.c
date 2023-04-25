@@ -18,19 +18,12 @@
 static void cleanup_timer_irq(vka_t *vka, sel4ps_irq_t *irq)
 {
     seL4_IRQHandler_Clear(irq->handler_path.capPtr);
-
-#ifdef CONFIG_LAMP
-    vka_free_capability(vka, irq->badged_ntfn_path.capPtr);
-    vka_free_capability(vka, irq->handler_path.capPtr);
-#else
     /* clear the cslots */
     vka_cnode_delete(&irq->badged_ntfn_path);
     vka_cnode_delete(&irq->handler_path);
     /* free the cslots */
     vka_cspace_free(vka, irq->badged_ntfn_path.capPtr);
     vka_cspace_free(vka, irq->handler_path.capPtr);
-#endif
-
 }
 
 

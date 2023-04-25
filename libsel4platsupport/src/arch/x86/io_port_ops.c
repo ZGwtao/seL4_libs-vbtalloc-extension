@@ -61,12 +61,8 @@ sel4platsupport_io_port_in(void *cookie, uint32_t port, int io_size, uint32_t *r
         break;
     }
 
-#ifdef CONFIG_LAMP
-    vka_free_capability(io_cookie->vka, path.capPtr);
-#else
     vka_cnode_delete(&path);
     vka_cspace_free_path(io_cookie->vka, path);
-#endif
     
     return error;
 }
@@ -106,12 +102,8 @@ sel4platsupport_io_port_out(void *cookie, uint32_t port, int io_size, uint32_t v
         break;
     }
 
-#ifdef CONFIG_LAMP
     vka_cnode_delete(&path);
     vka_cspace_free_path(io_cookie->vka, path);
-#else
-    vka_free_capability(io_cookie->vka, path.capPtr);
-#endif
 
     return result;
 }
