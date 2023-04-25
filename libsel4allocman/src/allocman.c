@@ -319,7 +319,7 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
     return _allocman_utspace_alloc(alloc, size_bits, type, path, paddr, canBeDev, _error, 1);
 }
 
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
 
 void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
 void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);

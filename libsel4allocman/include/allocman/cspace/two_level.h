@@ -76,7 +76,7 @@ static inline cspace_interface_t cspace_two_level_make_interface(cspace_two_leve
         .alloc = _cspace_two_level_alloc,
         .free = _cspace_two_level_free,
         .make_path = _cspace_two_level_make_path,
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
         .pool = NULL,
         .csa = NULL,
 #endif

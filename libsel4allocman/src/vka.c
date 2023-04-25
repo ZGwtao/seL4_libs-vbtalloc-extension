@@ -173,7 +173,7 @@ static uintptr_t am_vka_utspace_paddr (void *data, seL4_Word target, seL4_Word t
     return allocman_utspace_paddr((allocman_t *)data, target, size_bits);
 }
 
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
 
 static int am_vka_utspace_try_alloc_from_pool(void *data, seL4_Word type, seL4_Word size_bits,
                                          uintptr_t paddr, bool can_use_dev, cspacepath_t *res)
@@ -235,7 +235,7 @@ void allocman_make_vka(vka_t *vka, allocman_t *alloc)
     vka->utspace_free = &am_vka_utspace_free;
     vka->utspace_paddr = &am_vka_utspace_paddr;
 
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
 
     vka->utspace_try_alloc_from_pool = &am_vka_utspace_try_alloc_from_pool;
     vka->utspace_try_free_from_pool = &am_vka_utspace_try_free_from_pool;

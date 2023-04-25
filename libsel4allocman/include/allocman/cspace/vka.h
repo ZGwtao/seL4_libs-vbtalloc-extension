@@ -45,7 +45,7 @@ static inline struct cspace_interface cspace_vka_make_interface(vka_t *vka) {
         .alloc = _cspace_vka_alloc,
         .free = _cspace_vka_free,
         .make_path = _cspace_vka_make_path,
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
         .pool = NULL,
         .csa = NULL,
 #endif

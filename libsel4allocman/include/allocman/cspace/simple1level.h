@@ -62,7 +62,7 @@ static inline struct cspace_interface cspace_simple1level_make_interface(cspace_
         .alloc = _cspace_simple1level_alloc,
         .free = _cspace_simple1level_free,
         .make_path = _cspace_simple1level_make_path,
-#ifdef CONFIG_LAMP
+#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
         .pool = NULL,
         .csa = NULL,
 #endif
