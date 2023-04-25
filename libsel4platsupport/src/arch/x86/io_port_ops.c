@@ -63,7 +63,6 @@ sel4platsupport_io_port_in(void *cookie, uint32_t port, int io_size, uint32_t *r
 
     vka_cnode_delete(&path);
     vka_cspace_free_path(io_cookie->vka, path);
-    
     return error;
 }
 
@@ -101,10 +100,8 @@ sel4platsupport_io_port_out(void *cookie, uint32_t port, int io_size, uint32_t v
         result = -1;
         break;
     }
-
     vka_cnode_delete(&path);
     vka_cspace_free_path(io_cookie->vka, path);
-
     return result;
 }
 
