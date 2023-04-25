@@ -8,6 +8,21 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(libsel4allocman C)
 
+set(configure_string "")
+
+config_option(
+    LibAllocmanAllowPoolOperations
+    LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
+    "Memory pool (pre-allocated objects) enable libsel4allocman to \
+    perform frame object pre-allocation, which is beneficial to \
+    the implementation of CapBuddy on top of seL4 micro-kernel."
+    DEFAULT
+    OFF
+)
+
+mark_as_advanced(LibAllocmanAllowPoolOperations)
+add_config_library(sel4allocman "${configure_string}")
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
 
 file(
@@ -33,4 +48,5 @@ target_link_libraries(
         sel4utils
         sel4vspace
         sel4_autoconf
+        sel4allocman_Config
 )
