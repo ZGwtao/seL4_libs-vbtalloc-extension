@@ -20,6 +20,7 @@ When building a project with the support of CapBuddy in libsel4allocman and libs
 * -DKernelRetypeFanOutLimit=1024 (4M -> pre-allocation 1024 4K)
 * -DKernelRootCNodeSizeBits=18 (or larger, just for recommendation)
 * -DLibSel4MuslcSysMorecoreBytes=0 (for libsel4muslcsys, when pager is missing, and we still want a dynamic heap)
+* -DKernelBenchmarks=track_utilisation (for benchmarking purpose)
          
 ## Others
 *Future work:*
