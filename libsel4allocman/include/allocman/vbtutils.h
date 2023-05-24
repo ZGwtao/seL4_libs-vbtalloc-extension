@@ -3,14 +3,15 @@
 
 #include <sel4/sel4.h>
 #include <vka/vka.h>
+#include <stdint.h>
 
 #define BITMAP_DEPTH            6
-#define BITMAP_SIZE             BIT(BITMAP_DEPTH)
+#define BITMAP_SIZE             64
 #define BITMAP_SUB_OFFSET(X)    ((X) - 32)
 #define BITMAP_LEVEL            ((BITMAP_DEPTH) - 1)
 #define VBT_PAGE_GRAIN          seL4_PageBits
 #define VBT_INDEX_BIT(X)        BIT(((BITMAP_SIZE) - 1) - (X))
-#define BITMAP_GET_LEVEL(X)     (CONFIG_WORD_SIZE - CLZL(X))
+#define BITMAP_GET_LEVEL(X)     ((BITMAP_SIZE) - CLZL(X))
 #define BITMAP_INDEX(SZ)        (1 << ((BITMAP_LEVEL) - (SZ)))
 #define VBT_SUBLEVEL_INDEX(SZ)  BITMAP_INDEX(SZ)
 #define VBT_TOPLEVEL_INDEX(SZ)  BITMAP_INDEX((SZ) - (BITMAP_LEVEL))
@@ -23,7 +24,7 @@ typedef struct vbtspacepath {
 } vbtspacepath_t; 
 
 struct vbt_bitmap {
-    size_t tnode[1];
+    uint64_t tnode[1];
 };
 
 struct vbt_tree {

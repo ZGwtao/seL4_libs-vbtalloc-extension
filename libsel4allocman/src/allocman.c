@@ -332,9 +332,9 @@ static inline int vbt_tree_window_at_level(int target_layer, int index) {
     return 1ul << (target_layer - BITMAP_GET_LEVEL(index));
 }
 
-static size_t vbt_tree_sub_add_up(int index)
+static uint64_t vbt_tree_sub_add_up(int index)
 {
-    size_t dtc = 0;
+    uint64_t dtc = 0;
     int level = BITMAP_GET_LEVEL(index);
     for (int i = level + 1; i <= BITMAP_DEPTH; ++i) {
         for (int j = 0, r = 1ul<<(i-level); j < r; ++j) {
@@ -389,7 +389,7 @@ void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t padd
         int idx = BITMAP_SUB_OFFSET(window * tree->entry.toplevel);
         for (int i = idx; i < idx + window; ++i) {
             if (VBT_AND(tree->top_tree.tnode[0], VBT_INDEX_BIT(i))) {
-                tree->sub_trees[i].tnode[0] = (size_t)-1;
+                tree->sub_trees[i].tnode[0] = (uint64_t)-1;
                 tree->sub_trees[i].tnode[0] &= MASK(63);
             }
         }
@@ -413,7 +413,7 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
         if (query_level) {
             for (uintptr_t i = tree->paddr; paddr > i + blk_size; i += blk_size, ++idx);
             idx += VBT_TOPLEVEL_INDEX(size_bits);
-            size_t dtc = VBT_INDEX_BIT(idx);
+            uint64_t dtc = VBT_INDEX_BIT(idx);
             if ((tree->top_tree.tnode[0] & dtc) == dtc) {
                 res->toplevel = idx;
             }
@@ -422,7 +422,7 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
             size_t topl_blk_size = BIT(VBT_PAGE_GRAIN + BITMAP_LEVEL);
             for (i = tree->paddr; paddr > i + topl_blk_size; i += topl_blk_size, ++idx);
             idx += VBT_TOPLEVEL_INDEX(topl_blk_size);
-            size_t dtc = VBT_INDEX_BIT(idx);
+            uint64_t dtc = VBT_INDEX_BIT(idx);
             if ((tree->top_tree.tnode[0] & dtc) == dtc) {
                 res->toplevel = idx;
             }
@@ -485,7 +485,7 @@ void vbt_tree_restore_blk_from_bitmap(void *_bitmap, int index) {
     }
 
     int idx = index >> 1;
-    size_t dtc = VBT_INDEX_BIT(idx);
+    uint64_t dtc = VBT_INDEX_BIT(idx);
     while(idx) {
         bitmap->tnode[0] |= dtc;
         buddy = idx % 2 ? idx - 1 : idx + 1;
@@ -501,7 +501,7 @@ void vbt_tree_restore_blk_from_bitmap(void *_bitmap, int index) {
 void vbt_tree_release_blk_from_bitmap(void *_bitmap, int index) {
     struct vbt_bitmap *bitmap = (struct vbt_bitmap*)_bitmap;
     int idx = index >> 1;
-    size_t dtc = VBT_INDEX_BIT(idx);
+    uint64_t dtc = VBT_INDEX_BIT(idx);
     while(idx) {
         if (!VBT_AND(dtc, bitmap->tnode[0])) {
             break;
@@ -556,7 +556,7 @@ void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
         subl = &tree->sub_trees[BITMAP_SUB_OFFSET(path->toplevel)];
         vbt_tree_release_blk_from_bitmap(subl, path->sublevel);
         int idx = path->toplevel;
-        size_t dtc = VBT_INDEX_BIT(idx);
+        uint64_t dtc = VBT_INDEX_BIT(idx);
         while(idx) {
             if (!VBT_AND(dtc, topl->tnode[0])) {
                 break;
@@ -583,7 +583,7 @@ void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
         int sti = BITMAP_SUB_OFFSET(window * path->toplevel);
         for (int i = sti; i < sti + window; ++i) {
             if (!VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
-                tree->sub_trees[i].tnode[0] = MASK(63) & (size_t)-1;
+                tree->sub_trees[i].tnode[0] = MASK(63) & (uint64_t)-1;
             }
         }
     } else {
@@ -597,7 +597,7 @@ void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
             topl->tnode[0] |= (VBT_INDEX_BIT(buddy_tree_index));
             int buddy;
             int idx = path->toplevel >> 1;
-            size_t dtc = VBT_INDEX_BIT(idx);
+            uint64_t dtc = VBT_INDEX_BIT(idx);
             while(idx) {
                 topl->tnode[0] |= dtc;
                 buddy = idx % 2 ? idx - 1 : idx + 1;
