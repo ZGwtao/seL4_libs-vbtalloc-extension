@@ -92,7 +92,6 @@ error:
     if (result->cptr) {
         vka_cspace_free(vka, result->cptr);
     }
-err_pool:
     /* don't return garbage to the caller */
     memset(result, 0, sizeof(*result));
     return error;
