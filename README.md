@@ -1,6 +1,6 @@
 
 # CapBuddy MM support based on seL4 LibOS utils
-This project aims to provide an example implementation of the CapBuddy memory management support based on the seL4 LibOS. We construct a Library OS that supports the CapBuddy implementation using the seL4 microkernel and components from seL4_Libs. The CapBuddy MM support is now implemented as a utility outside ofthe real untypd object allocator. When an allocation for any frame object is made, CapBuddy checks if the memory pools are empty (available). If they are empty, it returns a frame metadata (seL4_CPtr). If they are not empty, CapBuddy attempts to construct a new memory pool (a vbt-tree within allocman) by allocating an untyped object from the real untyped object allocator, then repeat the allocation procedure.
+This project aims to provide an example implementation of the ```CapBuddy``` memory management support based on seL4 LibOS utilities. CapBuddy MM support is now implemented as a buffer utility besides real untyped allocator (i.e. *allocman*). When receiving *alloc* demands, it will at first hand check if the memory pools are empty or not. If so, it returns a metadata describing an available memory region (i.e. capability pointers of contiguous frames), otherwise, by retyping and slicing an untyped object (size: 4M) into a batch of frame objects (size: 4K), one new memory pool will be created.
 
 ## Overview
 *Major modifications in seL4_Libs project:*
