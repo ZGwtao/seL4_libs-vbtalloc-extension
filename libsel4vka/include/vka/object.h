@@ -45,15 +45,21 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
     cspacepath_t path;
 
 #ifdef CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS
-    if (paddr == VKA_NO_PADDR && can_use_dev == false &&
+    if (paddr == VKA_NO_PADDR &&
         type == kobject_get_type(KOBJECT_FRAME, 12)) {
         error = vka_utspace_try_alloc_from_pool(vka, type, size_bits, paddr, can_use_dev, &path);
         if (error == 0) {
-            if (path.capPtr) {
+            if (path.capPtr)
+            {
                 result->ut = 0;
                 result->type = type;
                 result->size_bits = size_bits;
                 result->cptr = path.capPtr;
+            /*
+                if (config_set(CONFIG_DEBUG_BUILD)) {
+                    printf("[CapBuddy triggered] ");
+                }
+            */
                 return error;
             }
         }
