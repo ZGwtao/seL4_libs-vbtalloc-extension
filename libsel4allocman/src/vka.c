@@ -181,22 +181,66 @@ static int am_vka_utspace_try_alloc_from_pool(void *data, seL4_Word type, seL4_W
     assert(data);
     assert(res);
 
-    int error = 1;
-
-    if (paddr == ALLOCMAN_NO_PADDR) {
-        /* allocman uses the size in memory internally, where as vka expects size_bits
-        * as passed to Untyped_Retype, so do a conversion here */
-        seL4_Word actual_size = vka_get_object_size(type, size_bits);
-        if (actual_size != size_bits && type == kobject_get_type(KOBJECT_FRAME, 12)) {
-            actual_size = size_bits;
+    if (paddr == ALLOCMAN_NO_PADDR)
+    {
+        size_t real_size;
+        /***
+         * real_size: size of 'single' kernel object.
+         * size_bits: size of 'multiple' kernel object.
+         */
+        real_size = vka_get_object_size(type, size_bits);
+        if (real_size == 0) {
+            return -1;
         }
-        error = allocman_utspace_try_alloc_from_pool((allocman_t *)data, type, actual_size, ALLOCMAN_NO_PADDR, false, res);
+        /***
+         * FIXME:
+         *   Is it available to assert all object types, transfered into this function,
+         *   are frame object ? (Not confirmed yet)
+         */
+        /* assert(type == kobject_get_type(KOBJECT_FRAME, 12)); */
+    //!
+    //!TODO: any better solotions?
+    //!  (sel4test: test 61 PT0001)
+    //!  (sel4test: test 112 VSPACE0001)
+    //!
+        if (type == kobject_get_type(KOBJECT_FRAME, 12) && real_size != size_bits) {
+            /***
+             * NOTICE:
+             *  Since it's possible that allocation requirements are not single frame-wise,
+             *  which means it's feasible to allocate more than one frame per allocation,
+             *  CapBuddy allows 'size_bits' equals to pow(2, n) * frame_size to represent
+             *  a memory region consists of multiple frames.
+             */
+            if (size_bits < 12 || size_bits > 22) {
+                /***
+                 * FIXME:
+                 *   double-check available memory region size
+                 *   if larger than 4M or smaller than 4K,
+                 *   return an error and exit from CapBuddy.
+                 */
+                return -1;
+            }
+            real_size = size_bits;
+        }
 
+        /***
+         * FIXME:
+         *   'can_be_dev' now is set to 'false', which means CapBuddy is totally RAM based,
+         *   but is it proper to say device-memory untypeds are not available for CapBuddy?
+         */
+        int err;
+        err = allocman_utspace_try_alloc_from_pool((allocman_t *)data, type,
+                                                    real_size, ALLOCMAN_NO_PADDR, false, res);
+        return err;
     } else {
-        /* Not implemented yet. */
+        /***
+         * XXX:
+         * CapBuddy now only supports frame-object allocations from pool,
+         * Pool service for other kernel-objects is not implemented yet.
+         */
         ZF_LOGE("Pools for other objects are not implemented yet.");
     }
-    return error;
+    return -1;
 }
 
 static void am_vka_utspace_try_free_from_pool(void *data, seL4_CPtr cptr)
