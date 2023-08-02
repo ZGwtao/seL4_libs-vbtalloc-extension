@@ -95,8 +95,6 @@ struct allocman_freed_utspace_chunk {
     seL4_Word cookie;
 };
 
-struct vbt_forrest;
-
 /**
  * The allocman itself. This is generally the only type you will need to pass around
  * to deal with allocation. It is declared in full here so that the compiler is able
@@ -158,8 +156,9 @@ typedef struct allocman {
     size_t *utspace_chunk_count;
     struct allocman_utspace_allocation **utspace_chunks;
 
+/* enable capbuddy support */
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
-    struct vbt_forrest frame_pool;
+    capbuddy_memory_pool_t utspace_capbuddy_memory_pool;
 #endif
 
 } allocman_t;

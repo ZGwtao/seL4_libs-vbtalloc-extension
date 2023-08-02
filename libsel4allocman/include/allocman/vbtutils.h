@@ -45,10 +45,8 @@ typedef struct tcookie {
     struct tcookie *next;
 } tcookie_t;
 
-struct vbt_forrest {
+typedef struct capbuddy_memory_pool {
     virtual_bitmap_tree_t *cell[11];
     virtual_bitmap_tree_t *useup;
     tcookie_t *tcookieList;
-};
-
-typedef struct vbt_forrest vbt_pool_t;
+} capbuddy_memory_pool_t;
