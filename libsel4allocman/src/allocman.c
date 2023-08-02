@@ -324,8 +324,6 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
 void vbt_tree_init(struct allocman *alloc, virtual_bitmap_tree_t *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
 void vbt_tree_query_blk(virtual_bitmap_tree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
 void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path);
-void vbt_tree_list_insert(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *tree);
-void vbt_tree_list_remove(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *tree);
 
 static inline int vbt_tree_window_at_level(int target_layer, int index) {
     return 1ul << (target_layer - BITMAP_GET_LEVEL(index));
