@@ -326,7 +326,6 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
 void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path);
 void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree);
 void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree);
-int vbt_tree_acquire_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res);
 
 static inline int vbt_tree_window_at_level(int target_layer, int index) {
     return 1ul << (target_layer - BITMAP_GET_LEVEL(index));
@@ -851,70 +850,206 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, struct vbt_tree *
 int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t size_bits,
                                          uintptr_t paddr, bool canBeDev, cspacepath_t *res)
 {
-    int error;
+    int err = -1;
     if (!alloc->have_utspace) {
-        return 1;
+        return err;
     }
+    /***
+     * It should be noted that the metadata of the target memory region
+     * can be compressed. We can achieve this by returning 1 cspacepath
+     * with its 'capPtr' set to the capability pointer of the first frame
+     * of the requested memory region and its 'window' set to the number
+     * of frames.
+     * 
+     *     frames: [1][2][3][4]
+     *              ^
+     *              |
+     *            capPtr = 1 \
+     *                        --> target cspacepath_t (compressed)
+     *            window = 4 /
+     * 
+     * So in here, @param: frames_base_cptr = 1 (in the example)
+     */
+    seL4_CPtr frames_base_cptr;
 
-    seL4_CPtr slot;
-    while (vbt_tree_acquire_multiple_frame_from_pool(&alloc->frame_pool, size_bits, &slot)) {
+    /***
+     * Try acquiring frames for the requested memory region from CapBuddy,
+     * if failed, we should try to construct one new virtual-bitmap tree
+     * first, insert it into the memory pool (of CapBuddy), and we'll do
+     * it again.
+     * TODO:
+     *  What it we failed at the second time? Should we try constructing
+     *  new trees in an infinate loop? (I don't think that's proper and
+     *  that can be the reason to rewrite the code)
+     */
+    err = vbt_tree_acquire_multiple_frame_from_pool(&alloc->frame_pool, size_bits, &frames_base_cptr);
+    /* Failure occurred at our first approch */
+    if (err != seL4_NoError) {
+        /***
+         * constant values to create a new virtual-bitmap-tree (configurable)
+         */
+        size_t frames_window_bits = 10; /* support 1024 now only */
+        size_t frames_window_size = BIT(frames_window_bits);
+        size_t memory_region_bits = frames_window_bits + seL4_PageBits;
 
-        struct vbt_tree *nt = NULL;
-        cspacepath_t src_slot;
-        cspacepath_t des_slot;
-        seL4_CPtr cookie;
-        uintptr_t paddr;
-
-        error = allocman_cspace_alloc(alloc, &src_slot);
-        if (error) {
-            ZF_LOGE("Failed to alloc slot for origin untyped object.");
-            return error;
+        /* Allocated metadata before we truely allocating the capability */
+        cspacepath_t untyped_original;
+        /***
+         * Try allocate cspace_path for the original untyped object so
+         * as we can access to it under current cspace and move on.
+         */
+        err = allocman_cspace_alloc(alloc, &untyped_original);
+        if (err != seL4_NoError) {
+            ZF_LOGE("Failed to alloc slot for original untyped object.");
+            return err;
         }
 
-        cookie = allocman_utspace_alloc(alloc, 22, seL4_UntypedObject, &src_slot, false, &error);
-        if (error) {
-            allocman_cspace_free(alloc, &src_slot);
-            return error;
-        }
-        paddr = allocman_utspace_paddr(alloc, cookie, 22);
-
-        nt = (struct vbt_tree *)allocman_mspace_alloc(alloc, sizeof(struct vbt_tree), &error);
-        if (error) {
-            ZF_LOGE("Failed to alloc metadata to keep vbt-tree info.");
-            allocman_cspace_free(alloc, &src_slot);
-            allocman_utspace_free(alloc, cookie, 22);
-            return error;
-        }
-        error = allocman_cspace_csa(alloc, &des_slot, 10);
-        if (error) {
-            ZF_LOGE("Failed to alloc contiguous slots for pre-allocated frames.");
-            allocman_cspace_free(alloc, &src_slot);
-            allocman_utspace_free(alloc, cookie, 22);
-            allocman_mspace_free(alloc, nt, sizeof(*nt));
-            return error;
+        /* Why cookies? -> retrieve physical address */
+        /* cookie belongs to the internal allocator, we save it here. */
+        seL4_CPtr untyped_original_cookie =
+            allocman_utspace_alloc(alloc, memory_region_bits, seL4_UntypedObject,
+                                                &untyped_original, canBeDev, &err);
+        if (err != seL4_NoError) {
+            /* return the bookkeeping value */
+            allocman_cspace_free(alloc, &untyped_original);
+            ZF_LOGE("Failed to allocate original untyped object of size: %ld", BIT(memory_region_bits));
+            return err;
         }
 
-        vka_object_t origin = {src_slot.capPtr, cookie, seL4_UntypedObject, 22};
-        error = vka_untyped_retype(&origin, seL4_ARCH_4KPage, 12, 1024, &des_slot);
-        if (error) {
-            ZF_LOGE("[ERROR]: FAILED TO RETYPE CONTIGUOUS 4K PAGES.");
-            return error;
+        /***
+         * Retrieve the physical address of the target memory region
+         * (from the orginal untyped object's kernel information)
+         */
+        uintptr_t untyped_original_paddr =
+            allocman_utspace_paddr(alloc, untyped_original_cookie, memory_region_bits);
+
+        struct vbt_tree *target_tree;
+        /***
+         * FIXME:
+         *  What heap manager interface should be called here to store the virtual-bitmaps-
+         *  tree's metadata? 'allocman_mspace_alloc' or 'malloc'->sel4muslibcsys? I think
+         *  both of them are allocated from the '.bss' section during allocator's bootstrap.
+         */
+        target_tree = (struct vbt_tree *)malloc(sizeof(struct vbt_tree));
+        if (!target_tree) {
+            ZF_LOGE("Failed to allocate metadata to bookkeep vbt-tree information");
+            allocman_utspace_free(alloc, untyped_original_cookie, memory_region_bits);
+            allocman_cspace_free(alloc, &untyped_original);
+            return err;
         }
 
-        vbt_tree_init(alloc, nt, paddr, src_slot.capPtr, des_slot, 22);
-        vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[10], nt);
+        /***
+         * @param: frame_cptr_sequence: records the compressed metadata of frames of the
+         *         requested memory region (described at the entry of this function).
+         */
+        cspacepath_t frame_cptr_sequence;
+        /*** 
+         * @note: csa = [c]ontiguous capability-[s]lots' pointers' [a]llocation
+         * 
+         *  Here we try allocating metadata for the requested frames from the user-level
+         *  cspace allocator, 'allocman_cspace_csa' is enabled when CapBuddy supports are
+         *  enabled too.
+         */
+        err = allocman_cspace_csa(alloc, &frame_cptr_sequence, frames_window_bits);
+        if (err != seL4_NoError) {
+            ZF_LOGE("Failed to allocate contiguous slots for frames of the requested memory region");
+            allocman_utspace_free(alloc, untyped_original_cookie, memory_region_bits);
+            allocman_cspace_free(alloc, &untyped_original);
+            free(target_tree);
+            return err;
+        }
 
-        error = _allocman_utspace_append_tcookie(alloc, nt);
-        if (error) {
-            return error;
+        err =
+            seL4_Untyped_Retype(
+                untyped_original.capPtr,    /* '_service' : original untyped object cptr */
+                seL4_ARCH_4KPage,           /* 'type' : target object type it retypes to */
+                seL4_PageBits,              /* 'size' : target object size it retypes to */
+                frame_cptr_sequence.root,       // [dest] -> cspace root to find the frame caps
+                frame_cptr_sequence.dest,       // [dest] -> target cnode capability index (cptr)
+                frame_cptr_sequence.destDepth,  // [dest] -> cnode depth to retrieve the cspace
+                frame_cptr_sequence.offset,     // [dest] -> first frame capability index (cptr)
+                frames_window_size          /* 'num_objects' : frame number from the requested memory region */
+            );
+        if (err != seL4_NoError) {
+            /* Failed to retype to new frames through kernel interface from libsel4 */
+            ZF_LOGE("Failed to invoke 'seL4_Untyped_Retype' to create frames for CapBuddy memory pool");
+        /***
+         * FIXME:
+         *  Will we truely get here? Typically when every resource that needed are provided...
+         */
+            assert(0);
+            /* return err; */
+        }
+
+        /***
+         * When every thing is ready, let's put the newly created virtual-bitmap-tree into
+         * CapBuddy's memory pool, and of course, we need to initialize a metadata for it.
+         */
+        vbt_tree_init(alloc, target_tree, untyped_original_paddr, untyped_original.capPtr, frame_cptr_sequence, memory_region_bits);
+
+        /***
+         * Insert the newly created virtual-bitmap-tree into the memory pool.
+         * NOTICE:
+         *  'frames_window_bits' here is to denote the size of requested memory region that
+         *  a virtual-bitmap-tree is managing, which means by using 'frames_window_bits' are
+         *  we able to place the tree correctly into the memory pool as there are a lot of
+         *  virtual-bitmap-trees with different size in pool at the same time (this is because
+         *  freeing and allocating method will affect the number of available frames in a tree
+         *  so as to affect the available size of the tree, and the array passed here is sorted
+         *  by the available memory size in the tree)
+         */
+        vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[frames_window_bits], target_tree);
+
+        /***
+         * Rather than the virtual-bitmap-tree itself, we need to store its metdata for allocman
+         * (the allocator) to do bookkeeping jobs and managing all available & unavailable trees.
+         */
+        err = _allocman_utspace_append_tcookie(alloc, target_tree);
+        if (err != seL4_NoError) {
+            ZF_LOGE("Failed to append newly created virtual-bitmap-tree to allocator");
+            return err;
+        }
+
+        /* Now, retry acquiring frames from memory pool */
+        err = vbt_tree_acquire_multiple_frame_from_pool(&alloc->frame_pool, size_bits, &frames_base_cptr);
+        if (err != seL4_NoError) {
+            ZF_LOGE("Failed to acquire frames from the newly created virtual-bitmap-tree, abort from CapBuddy");
+            /***
+             * TODO:
+             *   Maybe we should return all of the resources allocated here to the allocator.
+             */
+            err = seL4_CNode_Revoke(untyped_original.dest, untyped_original.capPtr, untyped_original.capDepth);
+            if (err != seL4_NoError) {
+                ZF_LOGE("Failed to revoke the original untyped object's cap to delete all frames' capabilities");
+                /* Will we get here? */
+                assert(0);
+            }
+            allocman_utspace_free(alloc, untyped_original_cookie, memory_region_bits);
+            allocman_cspace_free(alloc, &untyped_original);
+            free(target_tree);
+            /***
+             * FIXME:
+             *  allocator bookkeeping metadata for the target_tree needs to be free'd too,
+             *  we need to implement this in the future...
+             */
+            while (true);   /* for debugging purpose, we should turn this on now */
+            return err;
         }
     }
-
-    *res = allocman_cspace_make_path(alloc, slot);
-    if (size_bits != 12) {
-        res->window = BIT(size_bits - 12);
+    /***
+     * Initialize the return value by creating the compressed metadata
+     * for frames of the requested memory region.
+     */
+    *res = allocman_cspace_make_path(alloc, frames_base_cptr);
+    if (size_bits != seL4_PageBits) {
+        /***
+         * @param: size_bits : size in bits of the requested memory region
+         * NOTICE:
+         *  This's not the size of the memory region managing by the newly
+         *  (if any exists) created virtual-bitmap-tree.
+         */
+        res->window = BIT(size_bits - seL4_PageBits);
     }
-
     return 0;
 }
 
