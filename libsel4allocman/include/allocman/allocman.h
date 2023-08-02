@@ -50,7 +50,7 @@
 #include <sel4allocman/gen_config.h>
 #include <sel4/types.h>
 #include <allocman/util.h>
-#include <allocman/vbtutils.h>
+#include <allocman/capbuddy.h>
 #include <allocman/cspace/cspace.h>
 #include <allocman/mspace/mspace.h>
 #include <allocman/utspace/utspace.h>
