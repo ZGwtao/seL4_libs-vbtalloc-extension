@@ -1113,8 +1113,9 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
     return 0;
 }
 
-void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
+void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size_t size_bits)
 {
+    /* Safety check */
     assert(alloc->utspace_capbuddy_memory_pool.tcookieList);
     
     tcookie_t *tck = alloc->utspace_capbuddy_memory_pool.tcookieList;
