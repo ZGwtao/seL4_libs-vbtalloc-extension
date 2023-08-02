@@ -861,15 +861,19 @@ int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
 
 static int _allocman_utspace_append_tcookie(allocman_t *alloc, virtual_bitmap_tree_t *tree)
 {
-    int error;
-
-    tcookie_t *tck = allocman_mspace_alloc(alloc, sizeof(tcookie_t), &error);
-    if (error) {
-        return error;
+#undef TREE_COOKIE_COMPARE_CPTR
+#define TREE_COOKIE_COMPARE_CPTR(c1, c2, cmp) \
+                        (c1->cptr cmp c2->cptr)
+    tcookie_t *tck;
+    /* Allocate space for new cookie's metadata */
+    tck = (tcookie_t *)malloc(sizeof(tcookie_t));
+    if (!tck) {
+        /* Failed to malloc new tree_cookie */
+        return -1;
     }
+    tck = (tcookie_t *)memset(tck, 0, sizeof(tcookie_t));
+
     tck->cptr = tree->frame_sequence.capPtr;
-    tck->next = NULL;
-    tck->prev = NULL;
     tck->tptr = tree;
 
     tcookie_t *curr = alloc->utspace_capbuddy_memory_pool.tcookieList;
@@ -877,31 +881,41 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, virtual_bitmap_tr
 
     if (!head) {
         alloc->utspace_capbuddy_memory_pool.tcookieList = tck;
-        return 0;
+        return seL4_NoError;
     }
 
-    for (; curr && curr->next && curr->next->cptr < tck->cptr; curr = curr->next);
+    while (curr) {
+        if (!curr->next) {
+            break;
+        }
+        if (TREE_COOKIE_COMPARE_CPTR(curr->next, tck, >=)) {
+            break;
+        }
+        curr = curr->next;
+    }
 
-    if (curr->cptr < tck->cptr) {
+    if (TREE_COOKIE_COMPARE_CPTR(curr, tck, <)) {
         tck->prev = curr;
         if (curr->next) {
             tck->next = curr->next;
             curr->next->prev = tck;
         }
         curr->next = tck;
-    } else {
-        assert(curr->cptr > tck->cptr);
-        tck->next = curr;
-        if (curr->prev) {
-            tck->prev = curr->prev;
-            curr->prev->next = tck;
-        }
-        curr->prev = tck;
-        if (head->cptr > tck->cptr) {
-            alloc->utspace_capbuddy_memory_pool.tcookieList = tck;
-        }
+        return seL4_NoError;
     }
-    return 0;
+
+    assert(TREE_COOKIE_COMPARE_CPTR(curr, tck, >));
+    tck->next = curr;
+    if (curr->prev) {
+        tck->prev = curr->prev;
+        curr->prev->next = tck;
+    }
+    curr->prev = tck;
+    if (TREE_COOKIE_COMPARE_CPTR(head, tck, >)) {
+        alloc->utspace_capbuddy_memory_pool.tcookieList = tck;
+    }
+    return seL4_NoError;
+#undef TREE_COOKIE_COMPARE_CPTR
 }
 
 int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t size_bits,
