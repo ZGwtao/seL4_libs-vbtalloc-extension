@@ -38,15 +38,15 @@ typedef struct virtual_bitmap_tree {
     struct vbt_bitmap sub_trees[32];
 } virtual_bitmap_tree_t;
 
-typedef struct tcookie {
+typedef struct virtual_bitmap_tree_cookie {
     seL4_CPtr cptr;
     virtual_bitmap_tree_t *tptr;
-    struct tcookie *prev;
-    struct tcookie *next;
-} tcookie_t;
+    struct virtual_bitmap_tree_cookie *prev;
+    struct virtual_bitmap_tree_cookie *next;
+} virtual_bitmap_tree_cookie_t;
 
 typedef struct capbuddy_memory_pool {
     virtual_bitmap_tree_t *cell[11];
     virtual_bitmap_tree_t *useup;
-    tcookie_t *tcookieList;
+    virtual_bitmap_tree_cookie_t *cookie_linked_list;
 } capbuddy_memory_pool_t;

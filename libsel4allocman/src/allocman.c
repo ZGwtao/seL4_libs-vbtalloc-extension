@@ -859,60 +859,65 @@ int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
     return _allocman_cspace_csa(alloc, slots, num_bits);
 }
 
-static int _allocman_utspace_append_tcookie(allocman_t *alloc, virtual_bitmap_tree_t *tree)
+static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc, virtual_bitmap_tree_t *tree)
 {
 #undef TREE_COOKIE_COMPARE_CPTR
 #define TREE_COOKIE_COMPARE_CPTR(c1, c2, cmp) \
                         (c1->cptr cmp c2->cptr)
-    tcookie_t *tck;
+
+    virtual_bitmap_tree_cookie_t *tx;
     /* Allocate space for new cookie's metadata */
-    tck = (tcookie_t *)malloc(sizeof(tcookie_t));
-    if (!tck) {
+    tx = (virtual_bitmap_tree_cookie_t *)malloc(sizeof(virtual_bitmap_tree_cookie_t));
+    if (!tx) {
         /* Failed to malloc new tree_cookie */
         return -1;
     }
-    tck = (tcookie_t *)memset(tck, 0, sizeof(tcookie_t));
+    tx = (virtual_bitmap_tree_cookie_t *)memset(tx, 0, sizeof(virtual_bitmap_tree_cookie_t));
 
-    tck->cptr = tree->frame_sequence.capPtr;
-    tck->tptr = tree;
+    tx->cptr = tree->frame_sequence.capPtr;
+    tx->tptr = tree;
 
-    tcookie_t *curr = alloc->utspace_capbuddy_memory_pool.tcookieList;
-    tcookie_t *head = alloc->utspace_capbuddy_memory_pool.tcookieList;
-
+    virtual_bitmap_tree_cookie_t *head;
+    /* First virtual-bitmap-tree in capbuddy's memory pool */
+    head = alloc->utspace_capbuddy_memory_pool.cookie_linked_list;
     if (!head) {
-        alloc->utspace_capbuddy_memory_pool.tcookieList = tck;
+        alloc->utspace_capbuddy_memory_pool.cookie_linked_list = tx;
         return seL4_NoError;
     }
 
+    /* Retrieve the proper insert point */
+    virtual_bitmap_tree_cookie_t *curr = head;
     while (curr) {
         if (!curr->next) {
             break;
         }
-        if (TREE_COOKIE_COMPARE_CPTR(curr->next, tck, >=)) {
+        if (TREE_COOKIE_COMPARE_CPTR(curr->next, tx, >=)) {
             break;
         }
         curr = curr->next;
     }
 
-    if (TREE_COOKIE_COMPARE_CPTR(curr, tck, <)) {
-        tck->prev = curr;
+    /* If at the end of the linked-list */
+    if (TREE_COOKIE_COMPARE_CPTR(curr, tx, <)) {
+        tx->prev = curr;
         if (curr->next) {
-            tck->next = curr->next;
-            curr->next->prev = tck;
+            tx->next = curr->next;
+            curr->next->prev = tx;
         }
-        curr->next = tck;
+        curr->next = tx;
         return seL4_NoError;
     }
 
-    assert(TREE_COOKIE_COMPARE_CPTR(curr, tck, >));
-    tck->next = curr;
+    assert(TREE_COOKIE_COMPARE_CPTR(curr, tx, >));
+    tx->next = curr;
     if (curr->prev) {
-        tck->prev = curr->prev;
-        curr->prev->next = tck;
+        tx->prev = curr->prev;
+        curr->prev->next = tx;
     }
-    curr->prev = tck;
-    if (TREE_COOKIE_COMPARE_CPTR(head, tck, >)) {
-        alloc->utspace_capbuddy_memory_pool.tcookieList = tck;
+    curr->prev = tx;
+    /* If it happens to be the head of the linked-list */
+    if (TREE_COOKIE_COMPARE_CPTR(head, tx, >)) {
+        alloc->utspace_capbuddy_memory_pool.cookie_linked_list = tx;
     }
     return seL4_NoError;
 #undef TREE_COOKIE_COMPARE_CPTR
@@ -1078,7 +1083,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
          * Rather than the virtual-bitmap-tree itself, we need to store its metdata for allocman
          * (the allocator) to do bookkeeping jobs and managing all available & unavailable trees.
          */
-        err = _allocman_utspace_append_tcookie(alloc, target_tree);
+        err = _allocman_utspace_append_virtual_bitmap_tree_cookie(alloc, target_tree);
         if (err != seL4_NoError) {
             ZF_LOGE("Failed to append newly created virtual-bitmap-tree to allocator");
             return err;
@@ -1133,11 +1138,11 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
 #define TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(a,b) \
                                 (a >= b && a < b + 1024)
     /* Safety check */
-    assert(alloc->utspace_capbuddy_memory_pool.tcookieList);
+    assert(alloc->utspace_capbuddy_memory_pool.cookie_linked_list);
 
-    tcookie_t *tck;
+    virtual_bitmap_tree_cookie_t *tck;
     /* Try retrieving target virtual-bitmap-tree */
-    tck = alloc->utspace_capbuddy_memory_pool.tcookieList;
+    tck = alloc->utspace_capbuddy_memory_pool.cookie_linked_list;
     while (tck) {
         if (TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(cptr, tck->cptr)) {
             break;
