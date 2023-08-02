@@ -50,3 +50,12 @@ typedef struct capbuddy_memory_pool {
     virtual_bitmap_tree_t *useup;
     virtual_bitmap_tree_cookie_t *cookie_linked_list;
 } capbuddy_memory_pool_t;
+
+void vbt_tree_init(virtual_bitmap_tree_t *target_tree, uintptr_t paddr, cspacepath_t frame_cptr_sequence, size_t real_size);
+void vbt_tree_query_blk(virtual_bitmap_tree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
+seL4_CPtr vbt_tree_acq_cap_idx(virtual_bitmap_tree_t *tree, const vbtspacepath_t *path);
+void vbt_tree_restore_blk_from_bitmap(void *_bitmap, int index);
+void vbt_tree_release_blk_from_bitmap(void *_bitmap, int index);
+void vbt_tree_update_avail_size(virtual_bitmap_tree_t *tree);
+void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path);
+void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path);
