@@ -321,7 +321,6 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
 
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS /* CapBuddy support */
 
-void vbt_tree_init(struct allocman *alloc, virtual_bitmap_tree_t *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
 void vbt_tree_query_blk(virtual_bitmap_tree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
 void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path);
 
@@ -341,47 +340,32 @@ static uint64_t vbt_tree_sub_add_up(int index)
     return dtc;
 }
 
-void vbt_tree_init(struct allocman *alloc, virtual_bitmap_tree_t *tree, uintptr_t paddr,
-                   seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size)
+void vbt_tree_init(allocman_t *alloc, virtual_bitmap_tree_t *target_tree,
+                    uintptr_t paddr, cspacepath_t frame_cptr_sequence, size_t real_size)
 {
-    tree->paddr = paddr;
-    tree->entry.toplevel = 0;
-    tree->entry.sublevel = 0;
+    target_tree->paddr = paddr;
+    target_tree->frame_sequence = frame_cptr_sequence;
+    target_tree->blk_max_size = real_size;
+    target_tree->blk_cur_size = real_size;
 
-    tree->frame_sequence.capPtr = dest_reg.capPtr;
-    tree->frame_sequence.capDepth = dest_reg.capDepth;
-    tree->frame_sequence.dest = dest_reg.dest;
-    tree->frame_sequence.destDepth = dest_reg.destDepth;
-    tree->frame_sequence.offset = dest_reg.offset;
-    tree->frame_sequence.root = dest_reg.root;
-    tree->frame_sequence.window = dest_reg.window;
-
-    tree->blk_max_size = real_size;
-    tree->blk_cur_size = real_size;
-    tree->next = NULL;
-    tree->prev = NULL;
-    tree->top_tree.tnode[0] = 0ul;
-    for (size_t i = 0; i < 32; ++i) {
-        tree->sub_trees[i].tnode[0] = 0ul;
-    }
     size_t size_bits = real_size - VBT_PAGE_GRAIN;
     assert(size_bits && size_bits <= 10);
     if (size_bits < BITMAP_LEVEL) {
-        tree->entry.toplevel = 32;
-        tree->entry.sublevel = VBT_SUBLEVEL_INDEX(size_bits);
-        tree->top_tree.tnode[0] |= VBT_INDEX_BIT(32);
-        tree->sub_trees[0].tnode[0] |= VBT_INDEX_BIT(tree->entry.sublevel);
-        tree->sub_trees[0].tnode[0] |= vbt_tree_sub_add_up(tree->entry.sublevel);
+        target_tree->entry.toplevel = 32;
+        target_tree->entry.sublevel = VBT_SUBLEVEL_INDEX(size_bits);
+        target_tree->top_tree.tnode[0] |= VBT_INDEX_BIT(32);
+        target_tree->sub_trees[0].tnode[0] |= VBT_INDEX_BIT(target_tree->entry.sublevel);
+        target_tree->sub_trees[0].tnode[0] |= vbt_tree_sub_add_up(target_tree->entry.sublevel);
     } else {
-        tree->entry.toplevel = VBT_TOPLEVEL_INDEX(size_bits);
-        tree->top_tree.tnode[0] |= VBT_INDEX_BIT(tree->entry.toplevel);
-        tree->top_tree.tnode[0] |= vbt_tree_sub_add_up(tree->entry.toplevel);
-        int window = vbt_tree_window_at_level(BITMAP_DEPTH, tree->entry.toplevel);
-        int idx = BITMAP_SUB_OFFSET(window * tree->entry.toplevel);
+        target_tree->entry.toplevel = VBT_TOPLEVEL_INDEX(size_bits);
+        target_tree->top_tree.tnode[0] |= VBT_INDEX_BIT(target_tree->entry.toplevel);
+        target_tree->top_tree.tnode[0] |= vbt_tree_sub_add_up(target_tree->entry.toplevel);
+        int window = vbt_tree_window_at_level(BITMAP_DEPTH, target_tree->entry.toplevel);
+        int idx = BITMAP_SUB_OFFSET(window * target_tree->entry.toplevel);
         for (int i = idx; i < idx + window; ++i) {
-            if (VBT_AND(tree->top_tree.tnode[0], VBT_INDEX_BIT(i))) {
-                tree->sub_trees[i].tnode[0] = (uint64_t)-1;
-                tree->sub_trees[i].tnode[0] &= MASK(63);
+            if (VBT_AND(target_tree->top_tree.tnode[0], VBT_INDEX_BIT(i))) {
+                target_tree->sub_trees[i].tnode[0] = (uint64_t)-1;
+                target_tree->sub_trees[i].tnode[0] &= MASK(63);
             }
         }
     }
@@ -1061,7 +1045,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
          * When every thing is ready, let's put the newly created virtual-bitmap-tree into
          * CapBuddy's memory pool, and of course, we need to initialize a metadata for it.
          */
-        vbt_tree_init(alloc, target_tree, untyped_original_paddr, untyped_original.capPtr, frame_cptr_sequence, memory_region_bits);
+        vbt_tree_init(alloc, target_tree, untyped_original_paddr, frame_cptr_sequence, memory_region_bits);
 
         /***
          * Insert the newly created virtual-bitmap-tree into the memory pool.
