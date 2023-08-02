@@ -679,26 +679,34 @@ void vbt_tree_list_insert(virtual_bitmap_tree_t *tree_linked_list[], virtual_bit
 #undef TREE_NODE_COMPARE
 }
 
-void vbt_tree_list_remove(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *tree)
+void vbt_tree_list_remove(virtual_bitmap_tree_t *tree_linked_list[], virtual_bitmap_tree_t *target_tree)
 {
-    assert(tree);
-    assert(treeList);
+    /* Safety check */
+    assert(target_tree);
+    assert(tree_linked_list);
 
-    virtual_bitmap_tree_t *curr = *treeList;
-    virtual_bitmap_tree_t *head = *treeList;
+    virtual_bitmap_tree_t *head = *tree_linked_list;
+    virtual_bitmap_tree_t *curr = head;
 
-    for (; curr && curr != tree; curr = curr->next);
-
-    assert(curr == tree);
-
+    /* Retrieve target_tree from target list */
+    while (curr) {
+        if (target_tree == curr) {
+            break;
+        }
+        curr = curr->next;
+    }
+    /* Check if no error occurs */
+    assert(target_tree == curr);
+    /* Remove it from the list */
     if (curr->prev != NULL) {
         curr->prev->next = curr->next;
     }
     if (curr->next != NULL) {
         curr->next->prev = curr->prev;
     }
+    /* If we are cutting the head down */
     if (head == curr) {
-        *treeList = curr->next;
+        *tree_linked_list = curr->next;
     }
     curr->next = NULL;
     curr->prev = NULL;
