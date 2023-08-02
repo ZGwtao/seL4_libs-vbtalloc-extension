@@ -40,7 +40,7 @@ typedef struct virtual_bitmap_tree {
 
 typedef struct virtual_bitmap_tree_cookie {
     seL4_CPtr cptr;
-    virtual_bitmap_tree_t *tptr;
+    virtual_bitmap_tree_t *target_tree;
     struct virtual_bitmap_tree_cookie *prev;
     struct virtual_bitmap_tree_cookie *next;
 } virtual_bitmap_tree_cookie_t;

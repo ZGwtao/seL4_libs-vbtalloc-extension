@@ -292,7 +292,7 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
     tx = (virtual_bitmap_tree_cookie_t *)memset(tx, 0, sizeof(virtual_bitmap_tree_cookie_t));
 
     tx->cptr = tree->frame_sequence.capPtr;
-    tx->tptr = tree;
+    tx->target_tree = tree;
 
     virtual_bitmap_tree_cookie_t *head;
     /* First virtual-bitmap-tree in capbuddy's memory pool */
@@ -570,7 +570,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
     assert(TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(cptr, tck->cptr));
 
 //XXX:
-    virtual_bitmap_tree_t *target = tck->tptr;
+    virtual_bitmap_tree_t *target = tck->target_tree;
     size_t blk_cur_size = target->blk_cur_size;
     size_t global = cptr - target->frame_sequence.capPtr;
     vbtspacepath_t blk = {
