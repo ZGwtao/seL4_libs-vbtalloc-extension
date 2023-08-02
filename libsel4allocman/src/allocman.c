@@ -782,23 +782,31 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
 
 static int _allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
 {
-    int root_op;
-    int error;
-
+    int err = -1;
+    /* Don't invoke it when nothing exists */
     if (!alloc->have_cspace) {
-        return 1;
+        return err;
     }
-
-    root_op = _start_operation(alloc);
+    int root_op = _start_operation(alloc);
     alloc->cspace_alloc_depth++;
-    error = alloc->cspace.csa(alloc, alloc->cspace.cspace, slots, num_bits);
+    err = alloc->cspace.csa(alloc, alloc->cspace.cspace, slots, num_bits);
     alloc->cspace_alloc_depth--;
     _end_operation(alloc, root_op);
-    return error;
+    return err;
 }
 
+/***
+ *  This is just one wrapper function for the internal implementation
+ *  of allocman's cspace_csa function '_allocman_cspace_csa(...)'
+ * 
+ * @note: csa = [c]ontiguous capability-[s]lots' pointers' [a]llocation
+ * @param: alloc : the allocator to be invoked (allocman-allocator)
+ * @param: slots : destination slots to fill in
+ * @param: num_bits : how many capabilities slots you wish to mark as allocated
+ */
 int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
 {
+    /* Call the internal function of allocman */
     return _allocman_cspace_csa(alloc, slots, num_bits);
 }
 
