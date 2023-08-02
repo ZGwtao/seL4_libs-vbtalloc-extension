@@ -39,8 +39,20 @@ typedef struct virtual_bitmap_tree {
 } virtual_bitmap_tree_t;
 
 typedef struct virtual_bitmap_tree_cookie {
-    seL4_CPtr cptr;
+    /***
+     * @param: 'frames_cptr_base' can be used to sort all virtual-bitmap-trees in
+     *          the tree_cookie_linked_list, this is because it's not always easy
+     *          to retrieve deep down to the virtual_bitmap_tree_t as they can be
+     *          different under different machine words working environments
+     */
+    seL4_CPtr frames_cptr_base;
+    /***
+     * pointer to the cookie of the target_tree's metadata
+     */
     virtual_bitmap_tree_t *target_tree;
+    /***
+     * bi-directions linked-list of tree_cookies
+     */
     struct virtual_bitmap_tree_cookie *prev;
     struct virtual_bitmap_tree_cookie *next;
 } virtual_bitmap_tree_cookie_t;
