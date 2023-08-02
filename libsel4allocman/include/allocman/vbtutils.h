@@ -27,28 +27,28 @@ struct vbt_bitmap {
     uint64_t tnode[1];
 };
 
-struct vbt_tree {
+typedef struct virtual_bitmap_tree {
     uintptr_t       paddr;
     vbtspacepath_t  entry;
     cspacepath_t    origin;
     cspacepath_t    pool_range;
     size_t          blk_max_size;
     size_t          blk_cur_size;
-    struct vbt_tree *next, *prev;
+    struct virtual_bitmap_tree *next, *prev;
     struct vbt_bitmap top_tree;
     struct vbt_bitmap sub_trees[32];
-};
+} virtual_bitmap_tree_t;
 
 typedef struct tcookie {
     seL4_CPtr cptr;
-    struct vbt_tree *tptr;
+    virtual_bitmap_tree_t *tptr;
     struct tcookie *prev;
     struct tcookie *next;
 } tcookie_t;
 
 struct vbt_forrest {
-    struct vbt_tree *mem_treeList[11];
-    struct vbt_tree *empty;
+    virtual_bitmap_tree_t *mem_treeList[11];
+    virtual_bitmap_tree_t *empty;
     tcookie_t *tcookieList;
 };
 

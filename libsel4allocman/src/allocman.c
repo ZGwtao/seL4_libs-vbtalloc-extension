@@ -321,11 +321,11 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
 
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
 
-void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
-void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
+void vbt_tree_init(struct allocman *alloc, virtual_bitmap_tree_t *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
+void vbt_tree_query_blk(virtual_bitmap_tree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
 void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path);
-void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree);
-void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree);
+void vbt_tree_list_insert(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *tree);
+void vbt_tree_list_remove(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *tree);
 
 static inline int vbt_tree_window_at_level(int target_layer, int index) {
     return 1ul << (target_layer - BITMAP_GET_LEVEL(index));
@@ -343,7 +343,7 @@ static uint64_t vbt_tree_sub_add_up(int index)
     return dtc;
 }
 
-void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t paddr,
+void vbt_tree_init(struct allocman *alloc, virtual_bitmap_tree_t *tree, uintptr_t paddr,
                    seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size)
 {
     tree->paddr = paddr;
@@ -395,7 +395,7 @@ void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t padd
     }
 }
 
-void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr)
+void vbt_tree_query_blk(virtual_bitmap_tree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr)
 {
     res->sublevel = 0;
     res->toplevel = 0;
@@ -457,7 +457,7 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
     }
 }
 
-seL4_CPtr vbt_tree_acq_cap_idx(struct vbt_tree *tree, const vbtspacepath_t *path)
+seL4_CPtr vbt_tree_acq_cap_idx(virtual_bitmap_tree_t *tree, const vbtspacepath_t *path)
 {
     if (path->sublevel == 0) {
         int lv_size = BITMAP_DEPTH - BITMAP_GET_LEVEL(path->toplevel) + BITMAP_LEVEL;
@@ -513,7 +513,7 @@ void vbt_tree_release_blk_from_bitmap(void *_bitmap, int index) {
     bitmap->tnode[0] &= ~(VBT_INDEX_BIT(index));
 }
 
-void vbt_tree_update_avail_size(struct vbt_tree *tree)
+void vbt_tree_update_avail_size(virtual_bitmap_tree_t *tree)
 {
     struct vbt_bitmap *topl = &tree->top_tree;
     struct vbt_bitmap *subl = NULL;
@@ -538,7 +538,7 @@ void vbt_tree_update_avail_size(struct vbt_tree *tree)
 }
 
 void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path) {
-    struct vbt_tree *tree = (struct vbt_tree*)_tree;
+    virtual_bitmap_tree_t *tree = (virtual_bitmap_tree_t*)_tree;
     struct vbt_bitmap *topl = &tree->top_tree;
     struct vbt_bitmap *subl = NULL;
 
@@ -572,7 +572,7 @@ void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
 }
 
 void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path) {
-    struct vbt_tree *tree = (struct vbt_tree*)_tree;
+    virtual_bitmap_tree_t *tree = (virtual_bitmap_tree_t*)_tree;
     struct vbt_bitmap *topl = &tree->top_tree;
     struct vbt_bitmap *subl = NULL;
 
@@ -613,13 +613,13 @@ x:
     vbt_tree_update_avail_size(tree);
 }
 
-void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
+void vbt_tree_list_insert(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *tree)
 {
     assert(tree);
     
     if (*treeList) {
-        struct vbt_tree *curr = *treeList;
-        struct vbt_tree *head = *treeList;
+        virtual_bitmap_tree_t *curr = *treeList;
+        virtual_bitmap_tree_t *head = *treeList;
         for (; curr && curr->next && curr->next->pool_range.capPtr < tree->pool_range.capPtr; curr = curr->next);
         if (curr->pool_range.capPtr < tree->pool_range.capPtr) {
             tree->prev = curr;
@@ -653,10 +653,10 @@ void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
     }
 }
 
-void tree_list_debug_print(struct vbt_tree **treeList, struct vbt_tree *empty) {
+void tree_list_debug_print(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *empty) {
     for (int i = 0; i < 11; ++i) {
         printf("treelist[%d]: ", i);
-        for (struct vbt_tree *tree = treeList[i]; tree; tree = tree->next) {
+        for (virtual_bitmap_tree_t *tree = treeList[i]; tree; tree = tree->next) {
             if (tree) {
                 printf(" < capPtr: [%ld] ", tree->pool_range.capPtr);
                 if (tree->prev) {
@@ -671,7 +671,7 @@ void tree_list_debug_print(struct vbt_tree **treeList, struct vbt_tree *empty) {
         printf("\n");
     }
     printf("\n [EmptyList] >>>> : \n");
-    for (struct vbt_tree *tree = empty; tree; tree = tree->next) {
+    for (virtual_bitmap_tree_t *tree = empty; tree; tree = tree->next) {
         if (tree) {
             printf("   < capPtr: [%ld] ", tree->pool_range.capPtr);
             if (tree->prev) {
@@ -686,13 +686,13 @@ void tree_list_debug_print(struct vbt_tree **treeList, struct vbt_tree *empty) {
     printf("\n");
 }
 
-void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
+void vbt_tree_list_remove(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *tree)
 {
     assert(tree);
     assert(treeList);
 
-    struct vbt_tree *curr = *treeList;
-    struct vbt_tree *head = *treeList;
+    virtual_bitmap_tree_t *curr = *treeList;
+    virtual_bitmap_tree_t *head = *treeList;
 
     for (; curr && curr != tree; curr = curr->next);
 
@@ -712,7 +712,7 @@ void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
     return;
 }
 
-void vbt_tree_debug_print(struct vbt_tree *tree) {
+void vbt_tree_debug_print(virtual_bitmap_tree_t *tree) {
     printf(">> cur-blk-size: %ld\n", tree->blk_cur_size);
     printf(">> pool_range: %ld\n", tree->pool_range.capPtr);
     printf("top-level: [%016lx]\n", tree->top_tree.tnode[0]);
@@ -734,7 +734,7 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
      * The tree must have no less than one piece of available memory region
      * that is large enough to meet the memory request (avail_size > real_size)
      */
-    struct vbt_tree *target_tree;
+    virtual_bitmap_tree_t *target_tree;
 
     size_t idx = /* memory pool is sorted by frame number (in bits) of the largest available memory region */
         real_size - seL4_PageBits;  /* 0, 1, 2, 4, ..., 256, 512, 1024 (2^0~10) frames */
@@ -829,7 +829,7 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
         return seL4_NoError;
     }
 
-    struct vbt_tree *tx = pool->empty;
+    virtual_bitmap_tree_t *tx = pool->empty;
     /* Add target tree into the empty list */
     if (tx) {
         /* FCFS */
@@ -894,7 +894,7 @@ int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
     return _allocman_cspace_csa(alloc, slots, num_bits);
 }
 
-static int _allocman_utspace_append_tcookie(allocman_t *alloc, struct vbt_tree *tree)
+static int _allocman_utspace_append_tcookie(allocman_t *alloc, virtual_bitmap_tree_t *tree)
 {
     int error;
 
@@ -1017,14 +1017,14 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         uintptr_t untyped_original_paddr =
             allocman_utspace_paddr(alloc, untyped_original_cookie, memory_region_bits);
 
-        struct vbt_tree *target_tree;
+        virtual_bitmap_tree_t *target_tree;
         /***
          * FIXME:
          *  What heap manager interface should be called here to store the virtual-bitmaps-
          *  tree's metadata? 'allocman_mspace_alloc' or 'malloc'->sel4muslibcsys? I think
          *  both of them are allocated from the '.bss' section during allocator's bootstrap.
          */
-        target_tree = (struct vbt_tree *)malloc(sizeof(struct vbt_tree));
+        target_tree = (virtual_bitmap_tree_t *)malloc(sizeof(virtual_bitmap_tree_t));
         if (!target_tree) {
             ZF_LOGE("Failed to allocate metadata to bookkeep vbt-tree information");
             allocman_utspace_free(alloc, untyped_original_cookie, memory_region_bits);
@@ -1158,7 +1158,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
     assert(cptr >= tck->cptr);
     assert(cptr < tck->cptr + 1024);
 
-    struct vbt_tree *target = tck->tptr;
+    virtual_bitmap_tree_t *target = tck->tptr;
     size_t blk_cur_size = target->blk_cur_size;
     size_t global = cptr - target->pool_range.capPtr;
     vbtspacepath_t blk = {
@@ -1174,7 +1174,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
         if (blk_cur_size) {
             vbt_tree_list_remove(&alloc->frame_pool.mem_treeList[blk_cur_size - 12], target);
         } else {
-            struct vbt_tree *scanner = alloc->frame_pool.empty;
+            virtual_bitmap_tree_t *scanner = alloc->frame_pool.empty;
             for (; scanner->next && scanner != target; scanner = scanner->next);
             if (scanner == target) {
                 if (scanner->prev) {
