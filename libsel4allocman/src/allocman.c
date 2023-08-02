@@ -912,7 +912,9 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         if (err != seL4_NoError) {
             /* return the bookkeeping value */
             allocman_cspace_free(alloc, &untyped_original);
-            ZF_LOGE("Failed to allocate original untyped object of size: %ld", BIT(memory_region_bits));
+            if (config_set(LIB_ALLOCMAN_DEBUG)) {
+                ZF_LOGE("Failed to allocate original untyped object of size: %ld", BIT(memory_region_bits));
+            }
             return err;
         }
 

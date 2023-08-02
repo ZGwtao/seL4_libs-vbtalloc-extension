@@ -20,7 +20,15 @@ config_option(
     OFF
 )
 
-mark_as_advanced(LibAllocmanAllowPoolOperations)
+config_option(
+    LibAllocmanDebug
+    LIB_ALLOCMAN_DEBUG
+    ""
+    DEFAULT
+    OFF
+)
+
+mark_as_advanced(LibAllocmanAllowPoolOperations LibAllocmanDebug)
 add_config_library(sel4allocman "${configure_string}")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
