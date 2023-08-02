@@ -633,11 +633,11 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
 #undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 }
 
-int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr)
+int allocman_cspace_target_object_allocated_from_pool(allocman_t *alloc, seL4_CPtr cptr)
 {
     assert(alloc->have_cspace);
     int res;
-    /* wrapper function for cspace_is_from_pool */
+    /* wrapper function for cspace_target_object_allocated_from_pool */
     res = alloc->cspace.pool(alloc, alloc->cspace.cspace, cptr);
     return res;
 }
