@@ -10,7 +10,7 @@
 
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS /* CapBuddy support */
 
-void vbt_tree_list_insert(virtual_bitmap_tree_t *tree_linked_list[], virtual_bitmap_tree_t *target_tree)
+static void _capbuddy_virtual_bitmap_tree_linked_list_insert(virtual_bitmap_tree_t *tree_linked_list[], virtual_bitmap_tree_t *target_tree)
 {
     /* Safety check */
     assert(target_tree);
@@ -76,7 +76,7 @@ void vbt_tree_list_insert(virtual_bitmap_tree_t *tree_linked_list[], virtual_bit
 #undef TREE_NODE_COMPARE
 }
 
-void vbt_tree_list_remove(virtual_bitmap_tree_t *tree_linked_list[], virtual_bitmap_tree_t *target_tree)
+static void _capbuddy_virtual_bitmap_tree_linked_list_remove(virtual_bitmap_tree_t *tree_linked_list[], virtual_bitmap_tree_t *target_tree)
 {
     /* Safety check */
     assert(target_tree);
@@ -110,7 +110,7 @@ void vbt_tree_list_remove(virtual_bitmap_tree_t *tree_linked_list[], virtual_bit
     return;
 }
 
-int vbt_tree_acquire_multiple_frame_from_pool(capbuddy_memory_pool_t *pool, size_t real_size, seL4_CPtr *res)
+static int _capbuddy_virtual_bitmap_tree_acquire_multiple_frames_from_memory_pool(capbuddy_memory_pool_t *pool, size_t real_size, seL4_CPtr *res)
 {
     /* Make sure the arg 'real_size' of the requested memory region is legal */
     assert(real_size >= seL4_PageBits);
@@ -197,7 +197,7 @@ int vbt_tree_acquire_multiple_frame_from_pool(capbuddy_memory_pool_t *pool, size
     }
     
     /* Remove it from the original tree list of memory pool */
-    vbt_tree_list_remove(&pool->cell[idx], target_tree);
+    _capbuddy_virtual_bitmap_tree_linked_list_remove(&pool->cell[idx], target_tree);
 
     /***
      * If the updated virtual-bitmap-tree still has available memory region
@@ -211,7 +211,7 @@ int vbt_tree_acquire_multiple_frame_from_pool(capbuddy_memory_pool_t *pool, size
          */
         idx = target_tree->blk_cur_size - seL4_PageBits;
         /* do the insertion */
-        vbt_tree_list_insert(&pool->cell[idx], target_tree);
+        _capbuddy_virtual_bitmap_tree_linked_list_insert(&pool->cell[idx], target_tree);
         return seL4_NoError;
     }
 
@@ -375,7 +375,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
      *  new trees in an infinate loop? (I don't think that's proper and
      *  that can be the reason to rewrite the code)
      */
-    err = vbt_tree_acquire_multiple_frame_from_pool(&alloc->utspace_capbuddy_memory_pool, size_bits, &frames_base_cptr);
+    err = _capbuddy_virtual_bitmap_tree_acquire_multiple_frames_from_memory_pool(&alloc->utspace_capbuddy_memory_pool, size_bits, &frames_base_cptr);
     /* Failure occurred at our first approch */
     if (err != seL4_NoError) {
         /***
@@ -494,7 +494,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
          *  so as to affect the available size of the tree, and the array passed here is sorted
          *  by the available memory size in the tree)
          */
-        vbt_tree_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[frames_window_bits], target_tree);
+        _capbuddy_virtual_bitmap_tree_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[frames_window_bits], target_tree);
 
         /***
          * Rather than the virtual-bitmap-tree itself, we need to store its metdata for allocman
@@ -507,7 +507,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         }
 
         /* Now, retry acquiring frames from memory pool */
-        err = vbt_tree_acquire_multiple_frame_from_pool(&alloc->utspace_capbuddy_memory_pool, size_bits, &frames_base_cptr);
+        err = _capbuddy_virtual_bitmap_tree_acquire_multiple_frames_from_memory_pool(&alloc->utspace_capbuddy_memory_pool, size_bits, &frames_base_cptr);
         if (err != seL4_NoError) {
             ZF_LOGE("Failed to acquire frames from the newly created virtual-bitmap-tree, abort from CapBuddy");
             /***
@@ -596,9 +596,9 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
     /* If the released memory region was from a normal cell */
     if (blk_cur_size) {
         /* Remove it from its original (normal cell) list */
-        vbt_tree_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[blk_cur_size - seL4_PageBits], target);
+        _capbuddy_virtual_bitmap_tree_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[blk_cur_size - seL4_PageBits], target);
         /* Insert it into where it should be */
-        vbt_tree_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - seL4_PageBits], target);
+        _capbuddy_virtual_bitmap_tree_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - seL4_PageBits], target);
         return;
     }
 
@@ -629,7 +629,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
     tx->prev = NULL;
 
     /* Insert it into where it should be */
-    vbt_tree_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - seL4_PageBits], target);
+    _capbuddy_virtual_bitmap_tree_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - seL4_PageBits], target);
 #undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 }
 
