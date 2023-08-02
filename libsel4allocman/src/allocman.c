@@ -319,7 +319,7 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
     return _allocman_utspace_alloc(alloc, size_bits, type, path, paddr, canBeDev, _error, 1);
 }
 
-#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
+#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS /* CapBuddy support */
 
 void vbt_tree_init(struct allocman *alloc, virtual_bitmap_tree_t *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
 void vbt_tree_query_blk(virtual_bitmap_tree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
@@ -1209,7 +1209,7 @@ int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr)
     return res;
 }
 
-#endif
+#endif /* CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS */
 
 static int _refill_watermark(allocman_t *alloc)
 {
