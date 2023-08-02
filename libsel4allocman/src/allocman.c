@@ -347,21 +347,15 @@ void vbt_tree_init(struct allocman *alloc, virtual_bitmap_tree_t *tree, uintptr_
     tree->paddr = paddr;
     tree->entry.toplevel = 0;
     tree->entry.sublevel = 0;
-    cspacepath_t origin_path = allocman_cspace_make_path(alloc, origin);
-    tree->origin.capPtr = origin_path.capPtr;
-    tree->origin.capDepth = origin_path.capDepth;
-    tree->origin.dest = origin_path.dest;
-    tree->origin.destDepth = origin_path.destDepth;
-    tree->origin.offset = origin_path.offset;
-    tree->origin.root = origin_path.root;
-    tree->origin.window = origin_path.window;
-    tree->pool_range.capPtr = dest_reg.capPtr;
-    tree->pool_range.capDepth = dest_reg.capDepth;
-    tree->pool_range.dest = dest_reg.dest;
-    tree->pool_range.destDepth = dest_reg.destDepth;
-    tree->pool_range.offset = dest_reg.offset;
-    tree->pool_range.root = dest_reg.root;
-    tree->pool_range.window = dest_reg.window;
+
+    tree->frame_sequence.capPtr = dest_reg.capPtr;
+    tree->frame_sequence.capDepth = dest_reg.capDepth;
+    tree->frame_sequence.dest = dest_reg.dest;
+    tree->frame_sequence.destDepth = dest_reg.destDepth;
+    tree->frame_sequence.offset = dest_reg.offset;
+    tree->frame_sequence.root = dest_reg.root;
+    tree->frame_sequence.window = dest_reg.window;
+
     tree->blk_max_size = real_size;
     tree->blk_cur_size = real_size;
     tree->next = NULL;
@@ -638,7 +632,7 @@ void vbt_tree_list_insert(virtual_bitmap_tree_t *tree_linked_list[], virtual_bit
 
 #undef TREE_NODE_COMPARE
 #define TREE_NODE_COMPARE(p1,p2,cmp) \
-    (p1->pool_range.capPtr cmp p2->pool_range.capPtr)
+    (p1->frame_sequence.capPtr cmp p2->frame_sequence.capPtr)
 
     /* Retrieve target insertion point */
     while (curr) {
@@ -785,7 +779,7 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
      * to be addressed by this convention: base + offset )
      * ------------------------------------------------------------------------------------
      */
-    *res = target_tree->pool_range.capPtr + /* the first frame among the whole memory region managing by the tree */
+    *res = target_tree->frame_sequence.capPtr + /* the first frame among the whole memory region managing by the tree */
             vbt_tree_acq_cap_idx(target_tree, &target_avail_mr); /* base + offset, so this is the offset */
 
     if (target_tree->blk_cur_size == (idx + seL4_PageBits)) {
@@ -889,7 +883,7 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, virtual_bitmap_tr
     if (error) {
         return error;
     }
-    tck->cptr = tree->pool_range.capPtr;
+    tck->cptr = tree->frame_sequence.capPtr;
     tck->next = NULL;
     tck->prev = NULL;
     tck->tptr = tree;
@@ -1147,7 +1141,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
 
     virtual_bitmap_tree_t *target = tck->tptr;
     size_t blk_cur_size = target->blk_cur_size;
-    size_t global = cptr - target->pool_range.capPtr;
+    size_t global = cptr - target->frame_sequence.capPtr;
     vbtspacepath_t blk = {
         32 + global / 32,
         32 + global % 32
