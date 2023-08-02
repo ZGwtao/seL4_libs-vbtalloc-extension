@@ -715,9 +715,9 @@ void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
 void vbt_tree_debug_print(struct vbt_tree *tree) {
     printf(">> cur-blk-size: %ld\n", tree->blk_cur_size);
     printf(">> pool_range: %ld\n", tree->pool_range.capPtr);
-    printf("top-level: [%016llx]\n", tree->top_tree.tnode[0]);
+    printf("top-level: [%016lx]\n", tree->top_tree.tnode[0]);
     for (int i = 0; i < 32; ++i) {
-        printf("sublv[%2d]: [%016llx] ", i, tree->sub_trees[i].tnode[0]);
+        printf("sublv[%2d]: [%016lx] ", i, tree->sub_trees[i].tnode[0]);
         if ((i + 1) % 4 == 0 && i) {
             printf("\n");
         }
