@@ -613,44 +613,70 @@ x:
     vbt_tree_update_avail_size(tree);
 }
 
-void vbt_tree_list_insert(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *tree)
+void vbt_tree_list_insert(virtual_bitmap_tree_t *tree_linked_list[], virtual_bitmap_tree_t *target_tree)
 {
-    assert(tree);
-    
-    if (*treeList) {
-        virtual_bitmap_tree_t *curr = *treeList;
-        virtual_bitmap_tree_t *head = *treeList;
-        for (; curr && curr->next && curr->next->pool_range.capPtr < tree->pool_range.capPtr; curr = curr->next);
-        if (curr->pool_range.capPtr < tree->pool_range.capPtr) {
-            tree->prev = curr;
-            if (curr->next) {
-                tree->next = curr->next;
-                curr->next->prev = tree;
-            }
-            curr->next = tree;
-        } else {
-            assert(curr->pool_range.capPtr > tree->pool_range.capPtr);
-            tree->next = curr;
-            if (curr->prev) {
-                tree->prev = curr->prev;
-                curr->prev->next = tree;
-            }
-            curr->prev = tree;
-            if (head->pool_range.capPtr > tree->pool_range.capPtr) {
-                *treeList = tree;
-            }
+    /* Safety check */
+    assert(target_tree);
+
+    /* Initialize list firstly */
+    if ((*tree_linked_list) == NULL) {
+        /* Remove it from the original list */
+        if (target_tree->next) {
+            target_tree->next->prev = target_tree->prev;
         }
-    } else {
-        if (tree->next) {
-            tree->next->prev = tree->prev;
+        if (target_tree->prev) {
+            target_tree->prev->next = target_tree->next;
         }
-        if (tree->prev) {
-            tree->prev->next = tree->next;
-        }
-        tree->next = NULL;
-        tree->prev = NULL;
-        *treeList = tree;
+        /* Initialization */
+        target_tree->next = NULL;
+        target_tree->prev = NULL;
+        /* Binding */
+        *tree_linked_list = target_tree;
+        return;
     }
+
+    virtual_bitmap_tree_t *head = *tree_linked_list;
+    virtual_bitmap_tree_t *curr = head;
+
+#undef TREE_NODE_COMPARE
+#define TREE_NODE_COMPARE(p1,p2,cmp) \
+    (p1->pool_range.capPtr cmp p2->pool_range.capPtr)
+
+    /* Retrieve target insertion point */
+    while (curr) {
+        if (TREE_NODE_COMPARE(curr, target_tree, >=)) {
+            break;
+        }
+        if (!curr->next) {
+            break;
+        }
+        curr = curr->next;
+    }
+    /* If target_tree should line at the end of the list */
+    if (TREE_NODE_COMPARE(curr, target_tree, <)) {
+        target_tree->prev = curr;
+        if (curr->next) {
+            target_tree->next = curr->next;
+            curr->next->prev = target_tree;
+        }
+        curr->next = target_tree;
+        return;
+    }
+    /***
+     * curr_prev <- target_tree <- curr, in that order
+     */
+    assert(TREE_NODE_COMPARE(curr, target_tree, >));
+    target_tree->next = curr;
+    if (curr->prev) {
+        target_tree->prev = curr->prev;
+        curr->prev->next = target_tree;
+    }
+    curr->prev = target_tree;
+    /* Should be the first one */
+    if (TREE_NODE_COMPARE(head, target_tree, >)) {
+        *tree_linked_list = target_tree;
+    }
+#undef TREE_NODE_COMPARE
 }
 
 void tree_list_debug_print(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *empty) {
