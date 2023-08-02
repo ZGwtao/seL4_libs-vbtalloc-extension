@@ -726,58 +726,142 @@ void vbt_tree_debug_print(struct vbt_tree *tree) {
 
 int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res)
 {
-    size_t size_bits = real_size - seL4_PageBits;
-    assert(size_bits >= 0);
-    int target_level = size_bits;
-    struct vbt_tree *tree = pool->mem_treeList[target_level];
-    for (int i = target_level + 1; !tree && i < 11; ++i) {
-        tree = pool->mem_treeList[i];
+    /* Make sure the arg 'real_size' of the requested memory region is legal */
+    assert(real_size >= seL4_PageBits);
+
+    /***
+     * Try getting the first available virtual-bitmap-tree.
+     * The tree must have no less than one piece of available memory region
+     * that is large enough to meet the memory request (avail_size > real_size)
+     */
+    struct vbt_tree *target_tree;
+
+    size_t idx = /* memory pool is sorted by frame number (in bits) of the largest available memory region */
+        real_size - seL4_PageBits;  /* 0, 1, 2, 4, ..., 256, 512, 1024 (2^0~10) frames */
+
+    while (idx <= 10) {
+        /***
+         * As described above, 0 <= idx <= 10, and every unit in memory pool represents
+         * a linked-list for the virtual-bitmap-trees with largest available memory region
+         * of size 2^idx frames. Since no paddr is required, the query method is FCFS
+         */
+        target_tree = pool->mem_treeList[idx++];
+        /***
+         * NOTICE:
+         *  It's feasible to query a tree with larger available
+         *  memory region than the one we requested.
+         */
+        if (target_tree) {
+            /* queried */
+            break;
+        }
     }
-    struct vbt_tree *old = tree;
-    if (!tree) {
-        return 1;
+    /* align */
+    idx -= 1;
+
+    if (target_tree == NULL) {
+        /* Failed to find available tree from CapBuddy's memory pool */
+        ZF_LOGV("No available virtual-bitmap-tree has enough memory for %ld memory request", BIT(real_size));
+        return -1;
     }
 
-    size_t curr_blk_size = tree->blk_cur_size;
-    vbtspacepath_t blk = {0, 0};
+    /***
+     * path to the available memory region in a virtual-bitmap-tree
+     */
+    vbtspacepath_t target_avail_mr;
+    /***
+     * Try getting the location of a available memory region from the target_tree.
+     * A target_tree may have more than one available memory region to serve the
+     * memory requested, so we need to find the first one.
+     */
+
+    vbt_tree_query_blk(
+        target_tree,        // the first available virtual-bitmap-tree
+        real_size,          // size (number of frames in bits) of requested memory region
+        &target_avail_mr,   // destination variable (should then be initialized)
+        ALLOCMAN_NO_PADDR   // FCFS means no particular physical address is required
+    );
+
+    vbt_tree_release_blk_from_vbt_tree(target_tree, &target_avail_mr);
+    /***
+     * Since 'res' denotes the first frame of the memory region to serve the request,
+     * typically in capability-index form, we should calculate the cptr of the frame
+     * and set it with the cptr.
+     * NOTICE:
+     *  [1][2][3][4] <- if we want [3], we should calculate it this way:
+     * 
+     *  base = cptr_of([1]), offset = 3 - 1, result = base + offset = cptr_of([1]) + 2
+     * ------------------------------------------------------------------------------------
+     * This works when we are in single level cspace, it should also be able to implemented
+     * under other cspace structure. Another thing: frames (from Untyped_Retype) are linearly
+     * distributing, so their capability index also construct a linear space (and it's fine
+     * to be addressed by this convention: base + offset )
+     * ------------------------------------------------------------------------------------
+     */
+    *res = target_tree->pool_range.capPtr + /* the first frame among the whole memory region managing by the tree */
+            vbt_tree_acq_cap_idx(target_tree, &target_avail_mr); /* base + offset, so this is the offset */
+
+    if (target_tree->blk_cur_size == (idx + seL4_PageBits)) {
+        /***
+         * Only happens when target_tree has more than 1 available
+         * memory region to serve the memory request, which means
+         * the updated tree status does not changed
+         */
+        return seL4_NoError;
+    }
     
-    vbt_tree_query_blk(tree, real_size, &blk, ALLOCMAN_NO_PADDR);
-    *res = vbt_tree_acq_cap_idx(tree, &blk) + tree->pool_range.capPtr;    
-    vbt_tree_release_blk_from_vbt_tree(tree, &blk);
+    /* Remove it from the original tree list of memory pool */
+    vbt_tree_list_remove(&pool->mem_treeList[idx], target_tree);
 
-    if (tree->blk_cur_size == curr_blk_size) {
-        return 0;
-    }
-    vbt_tree_list_remove(&pool->mem_treeList[curr_blk_size - 12], tree);
-    if (tree->blk_cur_size != 0) {
-        vbt_tree_list_insert(&pool->mem_treeList[tree->blk_cur_size - 12], tree);
-        return 0;
+    /***
+     * If the updated virtual-bitmap-tree still has available memory region
+     * to meet other memory requests, we need to add it back to the memory
+     * pool, otherwise add it to the 'empty' list.
+     */
+    if (target_tree->blk_cur_size != 0) {
+        /***
+         * It the updated virtual-bitmap-tree has a different maximum available
+         * memory region size, we need to insert it into a new tree linked-list.
+         */
+        idx = target_tree->blk_cur_size - seL4_PageBits;
+        /* do the insertion */
+        vbt_tree_list_insert(&pool->mem_treeList[idx], target_tree);
+        return seL4_NoError;
     }
 
-    if (pool->empty) {
-        struct vbt_tree *scanner = pool->empty;
-        for (; scanner->next; scanner = scanner->next);
-        if (tree->prev) {
-            tree->prev->next = tree->next;
+    struct vbt_tree *tx = pool->empty;
+    /* Add target tree into the empty list */
+    if (tx) {
+        /* FCFS */
+        while (tx->next) {
+            tx = tx->next;
         }
-        if (tree->next) {
-            tree->next->prev = tree->prev;
+        tx->next = target_tree;
+        /* Released from original list */
+        if (target_tree->prev) {
+            target_tree->prev->next = target_tree->next;
         }
-        scanner->next = tree;
-        tree->prev = scanner;
-        tree->next = NULL;
-    } else {
-        pool->empty = tree;
-        if (tree->next) {
-            tree->next->prev = tree->prev;
+        if (target_tree->next) {
+            target_tree->next->prev = target_tree->prev;
         }
-        if (tree->prev) {
-            tree->prev->next = tree->next;
-        }
-        tree->next = NULL;
-        tree->prev = NULL;
+        /* (TAIL) Insert into empty list */
+        target_tree->prev = tx;
+        target_tree->next = NULL;
+        return seL4_NoError;
     }
-    return 0;
+    /* Add it as the first one */
+    pool->empty = target_tree;
+    /* Released from original list */
+    if (target_tree->next) {
+        target_tree->next->prev = target_tree->prev;
+    }
+    if (target_tree->prev) {
+        target_tree->prev->next = target_tree->next;
+    }
+    /* Initialization */
+    target_tree->next = NULL;
+    target_tree->prev = NULL;
+    return seL4_NoError;
 }
 
 static int _allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
