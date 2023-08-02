@@ -1012,6 +1012,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
             allocman_cspace_free(alloc, &untyped_original);
             return err;
         }
+        target_tree = (virtual_bitmap_tree_t *)memset(target_tree, 0, sizeof(virtual_bitmap_tree_t));
 
         /***
          * @param: frame_cptr_sequence: records the compressed metadata of frames of the
