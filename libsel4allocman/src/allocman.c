@@ -1135,33 +1135,56 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
 
     vbt_tree_restore_blk_from_vbt_tree(target, &blk);
 
-    if (blk_cur_size != target->blk_cur_size) {
-        assert(blk_cur_size < target->blk_cur_size);
-        assert(blk_cur_size <= 22);
-        if (blk_cur_size) {
-            vbt_tree_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[blk_cur_size - 12], target);
-        } else {
-            virtual_bitmap_tree_t *scanner = alloc->utspace_capbuddy_memory_pool.useup;
-            for (; scanner->next && scanner != target; scanner = scanner->next);
-            if (scanner == target) {
-                if (scanner->prev) {
-                    scanner->prev->next = scanner->next;
-                }
-                if (scanner->next) {
-                    scanner->next->prev = scanner->prev;
-                }
-                if (target == alloc->utspace_capbuddy_memory_pool.useup) {
-                    alloc->utspace_capbuddy_memory_pool.useup = target->next;
-                }
-                scanner->next = NULL;
-                scanner->prev = NULL;
-            } else {
-                ZF_LOGE("Internal allocman error: unmatched tree pointer");
-                assert(0);
-            }
-        }
-        vbt_tree_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - 12], target);
+    /* No status change, just return then */
+    if (blk_cur_size == target->blk_cur_size) {
+        /***
+         * Only happens when target virtual-bitmap-tree has larger available memory
+         * region than the one that requested to be free'd and its largest available
+         * memory region was not affected by the one we've just released.
+         */
+        return;
     }
+    /* Safety checks */
+    assert(blk_cur_size < target->blk_cur_size);
+    assert(blk_cur_size <= 10 + seL4_PageBits);
+
+    /* If the released memory region was from a normal cell */
+    if (blk_cur_size) {
+        /* Remove it from its original (normal cell) list */
+        vbt_tree_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[blk_cur_size - seL4_PageBits], target);
+        /* Insert it into where it should be */
+        vbt_tree_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - seL4_PageBits], target);
+        return;
+    }
+
+    /* If it was from a useup cell */
+    virtual_bitmap_tree_t *tx;
+    
+    /* Try finding it from the useup list */
+    tx = alloc->utspace_capbuddy_memory_pool.useup;
+    while (tx) {
+        if (tx == target) {
+            break;
+        }
+        tx = tx->next;
+    }
+    assert(tx == target);
+    /* Remove it from the original (useup cell) list */
+    if (tx->prev) {
+        tx->prev->next = tx->next;
+    }
+    if (tx->next) {
+        tx->next->prev = tx->prev;
+    }
+    /* If we are cutting down the head of the list */
+    if (target == alloc->utspace_capbuddy_memory_pool.useup) {
+        alloc->utspace_capbuddy_memory_pool.useup = target->next;
+    }
+    tx->next = NULL;
+    tx->prev = NULL;
+
+    /* Insert it into where it should be */
+    vbt_tree_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - seL4_PageBits], target);
 }
 
 int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr)
