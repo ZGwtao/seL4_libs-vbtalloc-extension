@@ -53,5 +53,3 @@ struct vbt_forrest {
 };
 
 typedef struct vbt_forrest vbt_pool_t;
-
-struct allocman;
