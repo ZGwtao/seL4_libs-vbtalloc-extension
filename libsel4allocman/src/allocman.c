@@ -1115,16 +1115,25 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
 
 void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size_t size_bits)
 {
+#undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
+#define TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(a,b) \
+                                (a >= b && a < b + 1024)
     /* Safety check */
     assert(alloc->utspace_capbuddy_memory_pool.tcookieList);
-    
-    tcookie_t *tck = alloc->utspace_capbuddy_memory_pool.tcookieList;
-    
-    for (; tck && cptr > (tck->cptr + 1023); tck = tck->next);
 
-    assert(cptr >= tck->cptr);
-    assert(cptr < tck->cptr + 1024);
+    tcookie_t *tck;
+    /* Try retrieving target virtual-bitmap-tree */
+    tck = alloc->utspace_capbuddy_memory_pool.tcookieList;
+    while (tck) {
+        if (TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(cptr, tck->cptr)) {
+            break;
+        }
+        tck = tck->next;
+    }
+    /* Safety check */
+    assert(TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(cptr, tck->cptr));
 
+//XXX:
     virtual_bitmap_tree_t *target = tck->tptr;
     size_t blk_cur_size = target->blk_cur_size;
     size_t global = cptr - target->frame_sequence.capPtr;
@@ -1185,6 +1194,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
 
     /* Insert it into where it should be */
     vbt_tree_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - seL4_PageBits], target);
+#undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 }
 
 int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr)
