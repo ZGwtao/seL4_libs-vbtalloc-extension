@@ -679,39 +679,6 @@ void vbt_tree_list_insert(virtual_bitmap_tree_t *tree_linked_list[], virtual_bit
 #undef TREE_NODE_COMPARE
 }
 
-void tree_list_debug_print(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *empty) {
-    for (int i = 0; i < 11; ++i) {
-        printf("treelist[%d]: ", i);
-        for (virtual_bitmap_tree_t *tree = treeList[i]; tree; tree = tree->next) {
-            if (tree) {
-                printf(" < capPtr: [%ld] ", tree->pool_range.capPtr);
-                if (tree->prev) {
-                    printf(" prev: {%ld} ", tree->prev->pool_range.capPtr);
-                }
-                if (tree->next) {
-                    printf(" next: {%ld} ", tree->next->pool_range.capPtr);
-                }
-                printf("> ");
-            }
-        }
-        printf("\n");
-    }
-    printf("\n [EmptyList] >>>> : \n");
-    for (virtual_bitmap_tree_t *tree = empty; tree; tree = tree->next) {
-        if (tree) {
-            printf("   < capPtr: [%ld] ", tree->pool_range.capPtr);
-            if (tree->prev) {
-                printf(" prev: {%ld} ", tree->prev->pool_range.capPtr);
-            }
-            if (tree->next) {
-                printf(" next: {%ld} ", tree->next->pool_range.capPtr);
-            }
-            printf("> \n");
-        }
-    }
-    printf("\n");
-}
-
 void vbt_tree_list_remove(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_t *tree)
 {
     assert(tree);
@@ -736,18 +703,6 @@ void vbt_tree_list_remove(virtual_bitmap_tree_t **treeList, virtual_bitmap_tree_
     curr->next = NULL;
     curr->prev = NULL;
     return;
-}
-
-void vbt_tree_debug_print(virtual_bitmap_tree_t *tree) {
-    printf(">> cur-blk-size: %ld\n", tree->blk_cur_size);
-    printf(">> pool_range: %ld\n", tree->pool_range.capPtr);
-    printf("top-level: [%016lx]\n", tree->top_tree.tnode[0]);
-    for (int i = 0; i < 32; ++i) {
-        printf("sublv[%2d]: [%016lx] ", i, tree->sub_trees[i].tnode[0]);
-        if ((i + 1) % 4 == 0 && i) {
-            printf("\n");
-        }
-    }
 }
 
 int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res)
