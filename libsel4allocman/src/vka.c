@@ -252,7 +252,10 @@ static void am_vka_utspace_try_free_from_pool(void *data, seL4_CPtr cptr)
 static int am_vka_cspace_is_from_pool(void *data, seL4_CPtr cptr)
 {
     assert(data);
-
+    /***
+     * @param: cptr : target capability pointer (to be determined
+     *  if it's allocated from the memory pool of CapBuddy or not)
+     */
     return allocman_cspace_is_from_pool((allocman_t *)data, cptr);
 }
 
