@@ -187,7 +187,7 @@ static int _capbuddy_virtual_bitmap_tree_acquire_multiple_frames_from_memory_poo
     *res = target_tree->frame_sequence.capPtr + /* the first frame among the whole memory region managing by the tree */
             vbt_tree_acq_cap_idx(target_tree, &target_avail_mr); /* base + offset, so this is the offset */
 
-    if (target_tree->blk_cur_size == (idx + seL4_PageBits)) {
+    if (target_tree->largest_avail_frame_number_bits == (idx + seL4_PageBits)) {
         /***
          * Only happens when target_tree has more than 1 available
          * memory region to serve the memory request, which means
@@ -204,12 +204,12 @@ static int _capbuddy_virtual_bitmap_tree_acquire_multiple_frames_from_memory_poo
      * to meet other memory requests, we need to add it back to the memory
      * pool, otherwise add it to the 'empty' list.
      */
-    if (target_tree->blk_cur_size != 0) {
+    if (target_tree->largest_avail_frame_number_bits != 0) {
         /***
          * It the updated virtual-bitmap-tree has a different maximum available
          * memory region size, we need to insert it into a new tree linked-list.
          */
-        idx = target_tree->blk_cur_size - seL4_PageBits;
+        idx = target_tree->largest_avail_frame_number_bits - seL4_PageBits;
         /* do the insertion */
         _capbuddy_virtual_bitmap_tree_linked_list_insert(&pool->cell[idx], target_tree);
         return seL4_NoError;
@@ -571,7 +571,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
 
 //XXX:
     virtual_bitmap_tree_t *target = tck->target_tree;
-    size_t blk_cur_size = target->blk_cur_size;
+    size_t largest_avail_frame_number_bits = target->largest_avail_frame_number_bits;
     size_t global = cptr - target->frame_sequence.capPtr;
     vbtspacepath_t blk = {
         32 + global / 32,
@@ -581,7 +581,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
     vbt_tree_restore_blk_from_vbt_tree(target, &blk);
 
     /* No status change, just return then */
-    if (blk_cur_size == target->blk_cur_size) {
+    if (largest_avail_frame_number_bits == target->largest_avail_frame_number_bits) {
         /***
          * Only happens when target virtual-bitmap-tree has larger available memory
          * region than the one that requested to be free'd and its largest available
@@ -590,15 +590,15 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
         return;
     }
     /* Safety checks */
-    assert(blk_cur_size < target->blk_cur_size);
-    assert(blk_cur_size <= 10 + seL4_PageBits);
+    assert(largest_avail_frame_number_bits < target->largest_avail_frame_number_bits);
+    assert(largest_avail_frame_number_bits <= 10 + seL4_PageBits);
 
     /* If the released memory region was from a normal cell */
-    if (blk_cur_size) {
+    if (largest_avail_frame_number_bits) {
         /* Remove it from its original (normal cell) list */
-        _capbuddy_virtual_bitmap_tree_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[blk_cur_size - seL4_PageBits], target);
+        _capbuddy_virtual_bitmap_tree_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[largest_avail_frame_number_bits - seL4_PageBits], target);
         /* Insert it into where it should be */
-        _capbuddy_virtual_bitmap_tree_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - seL4_PageBits], target);
+        _capbuddy_virtual_bitmap_tree_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail_frame_number_bits - seL4_PageBits], target);
         return;
     }
 
@@ -629,7 +629,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
     tx->prev = NULL;
 
     /* Insert it into where it should be */
-    _capbuddy_virtual_bitmap_tree_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->blk_cur_size - seL4_PageBits], target);
+    _capbuddy_virtual_bitmap_tree_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail_frame_number_bits - seL4_PageBits], target);
 #undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 }
 

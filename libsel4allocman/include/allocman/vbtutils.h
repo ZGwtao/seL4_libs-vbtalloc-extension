@@ -28,14 +28,30 @@ struct vbt_bitmap {
 };
 
 typedef struct virtual_bitmap_tree {
-    uintptr_t       paddr;
+/***
+ * TODO:
+ *  entry -> architecture dependent, we need to
+ *      split it from the data structure to write
+ *      architecture independent codes.
+ */
     vbtspacepath_t  entry;
-    cspacepath_t    frame_sequence;
-    size_t          blk_max_size;
-    size_t          blk_cur_size;
-    struct virtual_bitmap_tree *next, *prev;
+/***
+ * TODO:
+ *  bitmap information is also architecture dependent,
+ *  split them from this like entry ...
+ */    
     struct vbt_bitmap top_tree;
     struct vbt_bitmap sub_trees[32];
+
+    uintptr_t base_physical_address;
+    
+    cspacepath_t frame_sequence;
+
+    size_t largest_avail_frame_number_bits;
+    
+    struct virtual_bitmap_tree *next;
+    struct virtual_bitmap_tree *prev;
+
 } virtual_bitmap_tree_t;
 
 typedef struct virtual_bitmap_tree_cookie {

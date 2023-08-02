@@ -21,10 +21,9 @@ static uint64_t vbt_tree_sub_add_up(int index)
 
 void vbt_tree_init(virtual_bitmap_tree_t *target_tree, uintptr_t paddr, cspacepath_t frame_cptr_sequence, size_t real_size)
 {
-    target_tree->paddr = paddr;
+    target_tree->base_physical_address = paddr;
     target_tree->frame_sequence = frame_cptr_sequence;
-    target_tree->blk_max_size = real_size;
-    target_tree->blk_cur_size = real_size;
+    target_tree->largest_avail_frame_number_bits = real_size;
 
     size_t size_bits = real_size - VBT_PAGE_GRAIN;
     assert(size_bits && size_bits <= 10);
@@ -64,7 +63,7 @@ void vbt_tree_query_blk(virtual_bitmap_tree_t *tree, size_t real_size, vbtspacep
     if (paddr != VBT_NO_PADDR) {
         int idx = 0;
         if (query_level) {
-            for (uintptr_t i = tree->paddr; paddr > i + blk_size; i += blk_size, ++idx);
+            for (uintptr_t i = tree->base_physical_address; paddr > i + blk_size; i += blk_size, ++idx);
             idx += VBT_TOPLEVEL_INDEX(size_bits);
             uint64_t dtc = VBT_INDEX_BIT(idx);
             if ((tree->top_tree.tnode[0] & dtc) == dtc) {
@@ -73,14 +72,14 @@ void vbt_tree_query_blk(virtual_bitmap_tree_t *tree, size_t real_size, vbtspacep
         } else {
             uintptr_t i;
             size_t topl_blk_size = BIT(VBT_PAGE_GRAIN + BITMAP_LEVEL);
-            for (i = tree->paddr; paddr > i + topl_blk_size; i += topl_blk_size, ++idx);
+            for (i = tree->base_physical_address; paddr > i + topl_blk_size; i += topl_blk_size, ++idx);
             idx += VBT_TOPLEVEL_INDEX(topl_blk_size);
             uint64_t dtc = VBT_INDEX_BIT(idx);
             if ((tree->top_tree.tnode[0] & dtc) == dtc) {
                 res->toplevel = idx;
             }
             int stree_idx = idx;
-            i = tree->paddr + i * topl_blk_size;
+            i = tree->base_physical_address + i * topl_blk_size;
             for (idx = 0; paddr > i + blk_size; i += blk_size, ++idx);
             dtc = VBT_INDEX_BIT(idx);
             if ((tree->sub_trees[stree_idx].tnode[0] & dtc) == dtc) {
@@ -182,12 +181,12 @@ void vbt_tree_update_avail_size(virtual_bitmap_tree_t *tree)
                 }
             }
         }
-        tree->blk_cur_size = (BITMAP_DEPTH) - BITMAP_GET_LEVEL(utmost) + (VBT_PAGE_GRAIN);
+        tree->largest_avail_frame_number_bits = (BITMAP_DEPTH) - BITMAP_GET_LEVEL(utmost) + (VBT_PAGE_GRAIN);
     } else {
-        tree->blk_cur_size = ((BITMAP_DEPTH) - BITMAP_GET_LEVEL(blk_cur_idx)) + ((BITMAP_LEVEL) + (VBT_PAGE_GRAIN));
+        tree->largest_avail_frame_number_bits = ((BITMAP_DEPTH) - BITMAP_GET_LEVEL(blk_cur_idx)) + ((BITMAP_LEVEL) + (VBT_PAGE_GRAIN));
     }
-    if (tree->blk_cur_size <= 12) {
-        tree->blk_cur_size = 0;
+    if (tree->largest_avail_frame_number_bits <= 12) {
+        tree->largest_avail_frame_number_bits = 0;
     }
 }
 
