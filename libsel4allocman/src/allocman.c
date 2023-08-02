@@ -710,7 +710,7 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
          * a linked-list for the virtual-bitmap-trees with largest available memory region
          * of size 2^idx frames. Since no paddr is required, the query method is FCFS
          */
-        target_tree = pool->mem_treeList[idx++];
+        target_tree = pool->cell[idx++];
         /***
          * NOTICE:
          *  It's feasible to query a tree with larger available
@@ -776,7 +776,7 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
     }
     
     /* Remove it from the original tree list of memory pool */
-    vbt_tree_list_remove(&pool->mem_treeList[idx], target_tree);
+    vbt_tree_list_remove(&pool->cell[idx], target_tree);
 
     /***
      * If the updated virtual-bitmap-tree still has available memory region
@@ -790,11 +790,11 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
          */
         idx = target_tree->blk_cur_size - seL4_PageBits;
         /* do the insertion */
-        vbt_tree_list_insert(&pool->mem_treeList[idx], target_tree);
+        vbt_tree_list_insert(&pool->cell[idx], target_tree);
         return seL4_NoError;
     }
 
-    virtual_bitmap_tree_t *tx = pool->empty;
+    virtual_bitmap_tree_t *tx = pool->useup;
     /* Add target tree into the empty list */
     if (tx) {
         /* FCFS */
@@ -815,7 +815,7 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
         return seL4_NoError;
     }
     /* Add it as the first one */
-    pool->empty = target_tree;
+    pool->useup = target_tree;
     /* Released from original list */
     if (target_tree->next) {
         target_tree->next->prev = target_tree->prev;
@@ -1058,7 +1058,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
          *  so as to affect the available size of the tree, and the array passed here is sorted
          *  by the available memory size in the tree)
          */
-        vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[frames_window_bits], target_tree);
+        vbt_tree_list_insert(&alloc->frame_pool.cell[frames_window_bits], target_tree);
 
         /***
          * Rather than the virtual-bitmap-tree itself, we need to store its metdata for allocman
@@ -1138,9 +1138,9 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
         assert(blk_cur_size < target->blk_cur_size);
         assert(blk_cur_size <= 22);
         if (blk_cur_size) {
-            vbt_tree_list_remove(&alloc->frame_pool.mem_treeList[blk_cur_size - 12], target);
+            vbt_tree_list_remove(&alloc->frame_pool.cell[blk_cur_size - 12], target);
         } else {
-            virtual_bitmap_tree_t *scanner = alloc->frame_pool.empty;
+            virtual_bitmap_tree_t *scanner = alloc->frame_pool.useup;
             for (; scanner->next && scanner != target; scanner = scanner->next);
             if (scanner == target) {
                 if (scanner->prev) {
@@ -1149,8 +1149,8 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
                 if (scanner->next) {
                     scanner->next->prev = scanner->prev;
                 }
-                if (target == alloc->frame_pool.empty) {
-                    alloc->frame_pool.empty = target->next;
+                if (target == alloc->frame_pool.useup) {
+                    alloc->frame_pool.useup = target->next;
                 }
                 scanner->next = NULL;
                 scanner->prev = NULL;
@@ -1159,7 +1159,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
                 assert(0);
             }
         }
-        vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[target->blk_cur_size - 12], target);
+        vbt_tree_list_insert(&alloc->frame_pool.cell[target->blk_cur_size - 12], target);
     }
 }
 

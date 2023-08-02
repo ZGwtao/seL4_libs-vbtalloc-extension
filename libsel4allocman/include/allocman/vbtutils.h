@@ -46,8 +46,8 @@ typedef struct tcookie {
 } tcookie_t;
 
 struct vbt_forrest {
-    virtual_bitmap_tree_t *mem_treeList[11];
-    virtual_bitmap_tree_t *empty;
+    virtual_bitmap_tree_t *cell[11];
+    virtual_bitmap_tree_t *useup;
     tcookie_t *tcookieList;
 };
 
