@@ -36,7 +36,12 @@ int vbt_instance_init(vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t ori
     data->largest_avail_frame_number_bits = origin_size_bits;
 
 #if CONFIG_WORD_SIZE == 32
-    ;
+    data->arch_data = (arch32_single_level_bitmap_t *)malloc(sizeof(arch32_single_level_bitmap_t));
+    if (!data->arch_data) {
+        ZF_LOGE("Failed to allocate memory for arch_data in vbt_t");
+        return -1;
+    }
+    data->arch_data = (arch32_single_level_bitmap_t *)memset(data->arch_data, 0, sizeof(arch32_single_level_bitmap_t));
 #else
     data->arch_data = (arch64_two_level_bitmap_t *)malloc(sizeof(arch64_two_level_bitmap_t));
     if (!data->arch_data) {
