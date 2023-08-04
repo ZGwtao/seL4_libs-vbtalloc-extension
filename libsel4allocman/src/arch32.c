@@ -87,10 +87,10 @@ static void __single_level_bitmap_update_mr_acquired(void *data, const void *coo
     assert(data);
     assert(cookie);
 
-    seL4_Word *fx = (seL4_Word *)cookie;
+    address_index_t *fx = (address_index_t *)cookie;
     arch32_single_level_bitmap_t *target = (arch32_single_level_bitmap_t *)data;
     /* original value */
-    int tx = *fx;
+    int tx = fx->idx;
     /* iteration variables */
     int tc = tx;
     int base = tx / MAPSIZE;
@@ -158,7 +158,19 @@ static void __single_level_bitmap_init(void *data)
 
 static seL4_CPtr __single_level_bitmap_offset_operator(const void *cookie)
 {
-
+    /* Safety check */
+    assert(cookie);
+    address_index_t *p = (address_index_t *)cookie;
+    /* no more than 2048 */
+    int idx = p->idx;
+    if (idx >= 2048) {
+        ZF_LOGE("Invalid memory region cookie: overwhelm index");
+        assert(0);
+    }
+    while (idx < 1024) {
+        idx <<= 1;
+    }
+    return (seL4_CPtr)(idx - 1024);
 }
 
 void arch32_vbt_make_interface(void *data)

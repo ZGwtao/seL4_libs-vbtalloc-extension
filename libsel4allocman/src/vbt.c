@@ -186,9 +186,5 @@ seL4_CPtr vbt_calculate_target_frame_cptr_offset(vbt_t *data, const void *cookie
         ZF_LOGE("Failed to calculate frame offset based on empty cookie");
         assert(0);
     }
-#if CONFIG_WORD_SIZE == 32
-    return NULL;
-#else
     return data->arch_frame_offset(cookie);
-#endif
 }
