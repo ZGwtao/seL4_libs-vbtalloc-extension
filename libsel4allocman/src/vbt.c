@@ -79,32 +79,48 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, uintptr_t pad
     }
     
     size_t fn = real_size - seL4_PageBits;
-
+    /***
+     * FIXME:
+     * We don't know the cookie type when we are invoking CapBuddy interfaces
+     * to query & acquire memory regions, so it's something we can't avoid to
+     * know cookie type in here.
+     */
+    void *cell;
 #if CONFIG_WORD_SIZE == 32
-    return NULL;
+    /***
+     * It turns out that we can use capability-pointer as reference cookie
+     * in single-level virtual-bitmap-tree structure. (it will be no more
+     * than 2048 and larger than 0, 1->4M, 2~3->2M, 4~7->1M, 8~15->512k ...)
+     * 
+     * seL4_Word = seL4_CPtr ?
+     */
+    cell = malloc(sizeof(seL4_Word));
+    if (!cell) {
+        ZF_LOGE("Failed to allocate space for vbt query cookie");
+        return NULL;
+    }
+    cell = memset(cell, 0, sizeof(seL4_Word));
 #else
-    void *cell = malloc(sizeof(address_cell_t));
+    cell = malloc(sizeof(address_cell_t));
     if (!cell) {
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
     }
     cell = memset(cell, 0, sizeof(address_cell_t));
-
-    data->arch_query_avail_mr(data->arch_data, fn, cell);
-/* FIXME */
-    return cell;
 #endif
+    data->arch_query_avail_mr(data->arch_data, fn, cell);
+    return cell;
 }
 
 /* Debug function ? */
 void vbt_query_try_cookie_release(void *cookie)
 {
 #if CONFIG_WORD_SIZE == 32
-    free(cookie);   /* deprecated now */
+    cookie = (seL4_Word *)cookie;
 #else
     cookie = (address_cell_t *)cookie;
-    free(cookie); /* Maybe we can do it anywhere? */
 #endif
+    free(cookie); /* Maybe we can do it anywhere? */
 }
 
 /***

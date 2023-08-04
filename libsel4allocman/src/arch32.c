@@ -5,7 +5,51 @@
 
 static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *res)
 {
+    /* Safety check */
+    assert(data);
+    assert(res);
 
+    seL4_Word *fx = (seL4_Word *)res;
+    arch32_single_level_bitmap_t *target = (arch32_single_level_bitmap_t *)data;
+
+    /* base number */
+    int b1 = BIT(10 - fn);
+    int b2 = BIT(10 - (fn - 1));
+    /* query number */
+    int q1 = b1 / sizeof(size_t);
+    int q2 = b2 / sizeof(size_t);
+
+    if (q1 == 0) {
+        /***
+         * Size of requested memory region is (256k <= mr <= 4M)
+         * So we have to handled the included very first reserved bit.
+         */
+        int r = CLZ(target->bma[0].map); // query result
+        if (r < b2 && r >= b1) {
+            /***
+             * If valid query result is found, set cookie value to its result and return,
+             * otherwise do nothing as the cookie has been 'memset' before the querying
+             * procedure started.
+             */
+            *fx = r;
+        }
+        return;
+    }
+    /***
+     * requested memory region is smaller than 256k
+     * (4k <= mr <= 128k)
+     */
+    int t; // query value
+    int r = b1; // query result
+    for (int i = q1; i < q2; ++i) {
+        t = CLZ(target->bma[i].map);
+        if (t < sizeof(size_t)) {
+            *fx = r + t; // update cookie
+            break;
+        }
+        r += sizeof(size_t);
+    }
+    /* Don't update fx(cookie) with r here */
 }
 
 static size_t __single_level_bitmap_refresh_largest_avail_mr(void *data)
