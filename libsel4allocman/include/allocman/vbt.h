@@ -4,8 +4,14 @@
 #include <autoconf.h>
 #include <sel4/types.h>
 #include <allocman/cspace/cspace.h>
-#include <allocman/vbt/arch32.h>
-#include <allocman/vbt/arch64.h>
+
+#if CONFIG_WORD_SIZE == 32
+    #include <allocman/vbt/arch32.h>
+#elif CONFIG_WORD_SIZE == 64
+    #include <allocman/vbt/arch64.h>
+#else
+    #error "Unsupported WORD_SIZE value"
+#endif
 
 typedef struct virtual_bitmap_tree {
     /***
