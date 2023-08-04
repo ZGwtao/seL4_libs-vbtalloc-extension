@@ -68,16 +68,19 @@ static size_t __single_level_bitmap_refresh_largest_avail_mr(void *data)
 
     int r;
     r = CLZ(target->bma[0].map);
-    if (r < 64) {
+    if (r < MAPSIZE) {
         return seL4_PageBits + 10 - (MAPSIZE - (CLZ(r) + 1)); // 10 denotes 2^10 = 1024
     }
     /* smaller than 256k */
     int i = 1;
     while (i < 64) {
-        if (CLZ(target->bma[i].map) < 64) {
+        if (CLZ(target->bma[i].map) < MAPSIZE) {
             break;
         }
         i += 1;
+    }
+    if (i == 64) {
+        return 0;
     }
     return seL4_PageBits + 6 - (MAPSIZE - CLZ(i));
 }
@@ -132,7 +135,13 @@ static void __single_level_bitmap_update_mr_acquired(void *data, const void *coo
 
 static void __single_level_bitmap_update_mr_released(void *data, const void *cookie)
 {
+    /* Safety check */
+    assert(data);
+    assert(cookie);
 
+    address_index_t *mr_idx = (address_index_t *)cookie;
+
+    assert(0);
 }
 
 static void __single_level_bitmap_init(void *data)
