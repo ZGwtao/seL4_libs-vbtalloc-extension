@@ -1,6 +1,12 @@
 
 #include <allocman/vbt/interface.h>
 
+typedef struct address_index {
+
+    int idx;
+
+} address_index_t;
+
 typedef struct _bitmap_32_ {
 
     size_t map;

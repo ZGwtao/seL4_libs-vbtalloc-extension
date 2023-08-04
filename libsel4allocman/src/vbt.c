@@ -88,18 +88,16 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, uintptr_t pad
     void *cell;
 #if CONFIG_WORD_SIZE == 32
     /***
-     * It turns out that we can use capability-pointer as reference cookie
+     * It turns out that we can use frame offset in array as reference cookie
      * in single-level virtual-bitmap-tree structure. (it will be no more
      * than 2048 and larger than 0, 1->4M, 2~3->2M, 4~7->1M, 8~15->512k ...)
-     * 
-     * seL4_Word = seL4_CPtr ?
      */
-    cell = malloc(sizeof(seL4_Word));
+    cell = malloc(sizeof(address_index_t));
     if (!cell) {
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
     }
-    cell = memset(cell, 0, sizeof(seL4_Word));
+    cell = memset(cell, 0, sizeof(address_index_t));
 #else
     cell = malloc(sizeof(address_cell_t));
     if (!cell) {
@@ -116,7 +114,7 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, uintptr_t pad
 void vbt_query_try_cookie_release(void *cookie)
 {
 #if CONFIG_WORD_SIZE == 32
-    cookie = (seL4_Word *)cookie;
+    cookie = (address_index_t *)cookie;
 #else
     cookie = (address_cell_t *)cookie;
 #endif
@@ -140,12 +138,8 @@ void vbt_update_memory_region_acquired(vbt_t *data, void *cookie)
         ZF_LOGE("vbt arch_data is NULL, initialize it first");
         return;
     }
-#if CONFIG_WORD_SIZE == 32
-    ;
-#else
     data->arch_acquire_mr(data->arch_data, cookie);
     data->largest_avail_frame_number_bits = data->arch_update_largest(data->arch_data);
-#endif
 }
 
 /***
