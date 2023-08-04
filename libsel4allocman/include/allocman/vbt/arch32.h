@@ -29,7 +29,7 @@ typedef struct single_level_bitmap {
      */
     arch32_bitmap_t bma[64];
 
-    void *data;
+    arch_vbt_init_fn arch_init;
 
 } arch32_single_level_bitmap_t;
 
