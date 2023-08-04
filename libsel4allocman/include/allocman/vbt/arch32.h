@@ -1,8 +1,7 @@
 
-#include <utils/util.h>
+#include <allocman/vbt/interface.h>
 
-
-typedef struct bitmap {
+typedef struct _bitmap_32_ {
 
     size_t map;
 

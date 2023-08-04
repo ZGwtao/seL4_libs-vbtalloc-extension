@@ -4,6 +4,7 @@
 #include <autoconf.h>
 #include <sel4/types.h>
 #include <allocman/cspace/cspace.h>
+#include <allocman/vbt/arch32.h>
 #include <allocman/vbt/arch64.h>
 
 typedef struct virtual_bitmap_tree {
@@ -25,6 +26,12 @@ typedef struct virtual_bitmap_tree {
     /* current largest available memory region size in bits of frame number */
     size_t largest_avail_frame_number_bits;
     
+    arch_vbt_update_largest_fn arch_update_largest;
+    arch_vbt_query_avail_mr_fn arch_query_avail_mr;
+    arch_vbt_acquire_mr_fn arch_acquire_mr;
+    arch_vbt_release_mr_fn arch_release_mr;
+    arch_vbt_retrieve_page_id_fn arch_frame_offset;
+
     struct virtual_bitmap_tree *next;
     struct virtual_bitmap_tree *prev;
 

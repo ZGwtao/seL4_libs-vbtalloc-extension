@@ -1,5 +1,5 @@
 
-#include <utils/util.h>
+#include <allocman/vbt/interface.h>
 
 #define BITMAP_DEPTH            6
 #define BITMAP_SIZE             64
@@ -27,7 +27,7 @@ typedef struct address_cell {
 
 } address_cell_t; 
 
-typedef struct bitmap {
+typedef struct _bitmap_64_ {
     /***
      * [true] denotes the virtual memory region is available;
      * [false] denotes the region is unavailable or reserved;
@@ -35,18 +35,6 @@ typedef struct bitmap {
     size_t map;
 
 } arch64_bitmap_t;
-
-typedef void (*arch64_vbt_init_fn)(void *data);
-
-typedef size_t (*arch64_vbt_update_largest_fn)(void *data);
-
-typedef void (*arch64_vbt_query_avail_mr_fn)(void *data, size_t fn, void *res);
-
-typedef void (*arch64_vbt_acquire_mr_fn)(void *data, const void *cookie);
-
-typedef void (*arch64_vbt_release_mr_fn)(void *data, const void *cookie);
-
-typedef seL4_CPtr (*arch64_vbt_cal_fcptr_ofs_fn)(const void *cookie);
 
 typedef struct two_level_bitmap {
 /***
@@ -61,16 +49,8 @@ typedef struct two_level_bitmap {
  */    
     arch64_bitmap_t l1;
     arch64_bitmap_t l2[32];
-
-    void *data;
-
-    arch64_vbt_init_fn arch_init;
-    arch64_vbt_update_largest_fn arch_update_largest;
-    arch64_vbt_query_avail_mr_fn arch_query_avail_mr;
-    arch64_vbt_acquire_mr_fn arch_acquire_mr;
-    arch64_vbt_release_mr_fn arch_release_mr;
-    
-    arch64_vbt_cal_fcptr_ofs_fn arch_frame_offset;
+/* architectural initializing interface */
+    arch_vbt_init_fn arch_init;
 
 } arch64_two_level_bitmap_t;
 

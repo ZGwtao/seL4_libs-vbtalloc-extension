@@ -4,6 +4,14 @@
 #include <string.h>
 #include <utils/util.h>
 
+#if CONFIG_WORD_SIZE == 32
+    #define ARCH_INSTANCE(x) arch32_##x
+#elif CONFIG_WORD_SIZE == 64
+    #define ARCH_INSTANCE(x) arch64_##x
+#else
+    #error "Unsupported WORD_SIZE value"
+#endif
+
 /***
  * Initialize a virtual-bitmap-tree.
  * 
@@ -36,11 +44,11 @@ int vbt_instance_init(vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t ori
         return -1;
     }
     data->arch_data = (arch64_two_level_bitmap_t *)memset(data->arch_data, 0, sizeof(arch64_two_level_bitmap_t));
-
-    arch64_vbt_make_interface(data->arch_data);
-
-    data->arch_data->arch_init(data->arch_data->data);
 #endif
+    ARCH_INSTANCE(vbt_make_interface)(data);
+    /* arch32/64_vbt_make_interface(data); */
+    data->arch_data->arch_init(data->arch_data);
+
     return seL4_NoError;
 }
 
@@ -77,7 +85,7 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, uintptr_t pad
     }
     cell = memset(cell, 0, sizeof(address_cell_t));
 
-    data->arch_data->arch_query_avail_mr(data->arch_data->data, fn, cell);
+    data->arch_query_avail_mr(data->arch_data, fn, cell);
 /* FIXME */
     return cell;
 #endif
@@ -114,8 +122,8 @@ void vbt_update_memory_region_acquired(vbt_t *data, void *cookie)
 #if CONFIG_WORD_SIZE == 32
     ;
 #else
-    data->arch_data->arch_acquire_mr(data->arch_data->data, cookie);
-    data->largest_avail_frame_number_bits = data->arch_data->arch_update_largest(data->arch_data->data);
+    data->arch_acquire_mr(data->arch_data, cookie);
+    data->largest_avail_frame_number_bits = data->arch_update_largest(data->arch_data);
 #endif
 }
 
@@ -144,8 +152,8 @@ void vbt_update_memory_region_released(vbt_t *data, seL4_CPtr cptr)
     cell.i1 = 32 + (cptr - data->frame_sequence.capPtr) / 32;
     cell.i2 = 32 + (cptr - data->frame_sequence.capPtr) % 32;
 
-    data->arch_data->arch_release_mr(data->arch_data->data, &cell);
-    data->largest_avail_frame_number_bits = data->arch_data->arch_update_largest(data->arch_data->data);
+    data->arch_release_mr(data->arch_data, &cell);
+    data->largest_avail_frame_number_bits = data->arch_update_largest(data->arch_data);
 #endif
 }
 
@@ -166,6 +174,6 @@ seL4_CPtr vbt_calculate_target_frame_cptr_offset(vbt_t *data, const void *cookie
 #if CONFIG_WORD_SIZE == 32
     return NULL;
 #else
-    return data->arch_data->arch_frame_offset(cookie);
+    return data->arch_frame_offset(cookie);
 #endif
 }

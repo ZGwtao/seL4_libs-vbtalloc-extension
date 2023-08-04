@@ -391,19 +391,13 @@ static seL4_CPtr __two_level_bitmap_frame_offset_operator(const void *cookie)
 void arch64_vbt_make_interface(void *data)
 {
     assert(data); /* Safety check */
-    arch64_two_level_bitmap_t *target = (arch64_two_level_bitmap_t *)data;
-
-    /***
-     * Self bookkeeping method -> record its own data
-     */
-    target->data = data;
-    target->arch_init = __two_level_bitmap_init;
-    
+    vbt_t *target = (vbt_t *)data;
+/* target->arch_data interfaces */
+    target->arch_data->arch_init = __two_level_bitmap_init;
+/* target interfaces */
     target->arch_update_largest = __two_level_bitmap_retrieve_updated_largest_avail_memory_region;
     target->arch_query_avail_mr = __two_level_bitmap_try_query_avail_memory_region;
-
     target->arch_acquire_mr = __two_level_bitmap_update_memory_region_acquired;
     target->arch_release_mr = __two_level_bitmap_update_memory_region_released;
-
     target->arch_frame_offset = __two_level_bitmap_frame_offset_operator;
 }
