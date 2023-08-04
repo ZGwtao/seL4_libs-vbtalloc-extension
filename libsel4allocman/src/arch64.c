@@ -3,6 +3,8 @@
 
 #define VBT_NO_PADDR 1
 
+#if CONFIG_WORD_SIZE == 64
+
 static inline int
     __bitmap_retrieve_descendants_num_between_levels(int l1, int l2)
 {
@@ -401,3 +403,5 @@ void arch64_vbt_make_interface(void *data)
     target->arch_release_mr = __two_level_bitmap_update_memory_region_released;
     target->arch_frame_offset = __two_level_bitmap_frame_offset_operator;
 }
+
+#endif /* CONFIG_WORD_SIZE == 64 */
