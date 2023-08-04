@@ -3,6 +3,8 @@
 
 #define VBT_NO_PADDR 1
 
+#define MAPSIZE CONFIG_WORD_SIZE
+
 static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *res)
 {
     /* Safety check */
@@ -16,8 +18,8 @@ static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *re
     int b1 = BIT(10 - fn);
     int b2 = BIT(10 - (fn - 1));
     /* query number */
-    int q1 = b1 / sizeof(size_t);
-    int q2 = b2 / sizeof(size_t);
+    int q1 = b1 / MAPSIZE;
+    int q2 = b2 / MAPSIZE;
 
     if (q1 == 0) {
         /***
@@ -43,11 +45,11 @@ static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *re
     int r = b1; // query result
     for (int i = q1; i < q2; ++i) {
         t = CLZ(target->bma[i].map);
-        if (t < sizeof(size_t)) {
+        if (t < MAPSIZE) {
             *fx = r + t; // update cookie
             break;
         }
-        r += sizeof(size_t);
+        r += MAPSIZE;
     }
     /* Don't update fx(cookie) with r here */
 }
