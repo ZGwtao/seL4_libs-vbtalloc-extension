@@ -160,16 +160,15 @@ void vbt_update_memory_region_released(vbt_t *data, seL4_CPtr cptr)
         return;
     }
 #if CONFIG_WORD_SIZE == 32
-    ;
+    address_index_t cell;
+    cell.idx = cptr - data->frame_sequence.capPtr + 1024;
 #else
     address_cell_t cell;
-
     cell.i1 = 32 + (cptr - data->frame_sequence.capPtr) / 32;
     cell.i2 = 32 + (cptr - data->frame_sequence.capPtr) % 32;
-
+#endif
     data->arch_release_mr(data->arch_data, &cell);
     data->largest_avail_frame_number_bits = data->arch_update_largest(data->arch_data);
-#endif
 }
 
 seL4_CPtr vbt_calculate_target_frame_cptr_offset(vbt_t *data, const void *cookie)

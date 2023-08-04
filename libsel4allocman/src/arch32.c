@@ -139,9 +139,52 @@ static void __single_level_bitmap_update_mr_released(void *data, const void *coo
     assert(data);
     assert(cookie);
 
-    address_index_t *mr_idx = (address_index_t *)cookie;
+    address_index_t *fx = (address_index_t *)cookie;
+    arch32_single_level_bitmap_t *target = (arch32_single_level_bitmap_t *)data;
+    /* original value */
+    int tx = fx->idx;
+#if 0
+    printf("\n%d\n", tx);
+    for (int i = 0; i < 64; ++i) {
+        if (i % 8 == 0) printf("\n");
+        printf("[%2d]: %08x ", i, target->bma[i].map);
+    }
+    printf("\n");
+#endif
+    if (tx == 1) {
+        for (int i = 1; i < 64; ++i) {
+            target->bma[i].map = 0xffffffff;
+        }
+        target->bma[0].map = 0x7fffffff;
+        return;
+    }
+    /* iteration variables */
+    int tc = tx;
+    int base = tx / MAPSIZE;
+    int offset = tx % MAPSIZE;
+    /* Ensure it has been free already */
+    assert(CHECK_ZERO(target->bma[base].map, offset));
 
-    assert(0);
+    int kx = 0;
+    /* descendants & self */
+    while (tc < 2048) {
+        for (int i = tc; i < tc + ARCH_BIT(kx); ++i) {
+            SET_BIT(target->bma[i / MAPSIZE].map, (i % MAPSIZE));
+        }
+        tc <<= 1;
+        kx += 1;
+    }
+    /* ancestors */
+    tc = tx;
+    int bx = tc % 2 ? tc - 1 : tc + 1; // buddy index
+    while (!CHECK_ZERO(target->bma[bx / MAPSIZE].map, (bx % MAPSIZE))) {
+        tc >>= 1;
+        SET_BIT(target->bma[tc / MAPSIZE].map, (tc % MAPSIZE));
+        if (tc == 1) {
+            break;
+        }
+        bx = tc % 2 ? tc - 1 : tc + 1;
+    }
 }
 
 static void __single_level_bitmap_init(void *data)
