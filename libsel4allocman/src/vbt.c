@@ -63,16 +63,19 @@ int vbt_instance_init(vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t ori
  * 
  * @param data : target virtual-bitmap-tree with architectural supports
  * @param real_size : size (number of frames + frame_size in bits) of the requested memory region
+ * @param err : query result validity
  * 
  * @return cookie : result, architecture dependent, passed to 'Arch_vbt_' interfaces
  */
-void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size)
+void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err)
 {
     if (!data) {
+        *err = -1;
         ZF_LOGE("vbt_data is NULL");
         return NULL;
     }
     if (!data->arch_data) {
+        *err = -1;
         ZF_LOGE("vbt arch_data is NULL, initialize it first");
         return NULL;
     }
@@ -117,16 +120,19 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size)
  * @param data : target virtual-bitmap-tree with architectural supports
  * @param real_size : size (number of frames + frame_size in bits) of the requested memory region
  * @param paddr : physical address of the requested memory region
+ * @param err : query result validity
  * 
  * @return cookie : result, architecture dependent, passed to 'Arch_vbt_' interfaces
  */
-void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t paddr)
+void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t paddr, int *err)
 {
     if (!data) {
+        *err = -1;
         ZF_LOGE("vbt_data is NULL");
         return NULL;
     }
     if (!data->arch_data) {
+        *err = -1;
         ZF_LOGE("vbt arch_data is NULL, initialize it first");
         return NULL;
     }

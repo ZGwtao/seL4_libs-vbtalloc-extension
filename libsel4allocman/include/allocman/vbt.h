@@ -45,9 +45,9 @@ typedef struct virtual_bitmap_tree {
 
 int vbt_instance_init(vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t origin_size_bits);
 
-void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size);
+void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err);
 
-void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t paddr);
+void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t paddr, int *err);
 
 void vbt_query_try_cookie_release(void *cookie);
 
