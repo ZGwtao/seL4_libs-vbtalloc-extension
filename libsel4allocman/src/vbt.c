@@ -96,6 +96,7 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err)
      */
     cell = malloc(sizeof(address_index_t));
     if (!cell) {
+        *err = -1;
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
     }
@@ -103,12 +104,20 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err)
 #else
     cell = malloc(sizeof(address_cell_t));
     if (!cell) {
+        *err = -1;
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
     }
     cell = memset(cell, 0, sizeof(address_cell_t));
 #endif
-    data->arch_query_avail_mr(data->arch_data, fn, cell);
+    /* Real work */
+    data->arch_query_avail_mr(data->arch_data, fn, cell, err);
+    if (*err != seL4_NoError) {
+        /* No available memory region for the request */
+        vbt_query_try_cookie_release(cell);
+        return NULL;
+    }
+    /* We are doing fine in here. */
     return cell;
 }
 
@@ -153,6 +162,7 @@ void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t 
      */
     cell = malloc(sizeof(address_index_t));
     if (!cell) {
+        *err = -1;
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
     }
@@ -160,12 +170,18 @@ void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t 
 #else
     cell = malloc(sizeof(address_cell_t));
     if (!cell) {
+        *err = -1;
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
     }
     cell = memset(cell, 0, sizeof(address_cell_t));
 #endif
-    /* data->arch_query_avail_mr(data->arch_data, fn, cell); */
+    data->arch_query_avail_mr_at(data->arch_data, paddr, fn, cell, err);
+    if (*err != seL4_NoError) {
+        /* No available memory region for the request */
+        vbt_query_try_cookie_release(cell);
+        return NULL;
+    }
     return cell;
 }
 
