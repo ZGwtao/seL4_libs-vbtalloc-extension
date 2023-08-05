@@ -15,6 +15,7 @@
 #include <allocman/cspace/vka.h>
 #include <allocman/utspace/vka.h>
 #include <allocman/mspace/malloc.h>
+#include <kernel/gen_config.h>
 
 /**
  * Allocate a slot in a cspace.
@@ -137,6 +138,36 @@ static int am_vka_utspace_alloc_at (void *data, const cspacepath_t *dest, seL4_W
      * as passed to Untyped_Retype, so do a conversion here */
     size_bits = vka_get_object_size(type, size_bits);
 
+#if CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS /* CapBuddy support */
+    /***
+     * CBD:
+     * We may implement CapBuddy support for typical physical address from here.
+     * To make it sure that it works, we now only support single-page allocation.
+     */
+    if (type == kobject_get_type(KOBJECT_FRAME, size_bits))
+    {
+        if (config_set(CONFIG_DEBUG_BUILD)) {
+            printf("allocman: required physical memory address %08x\n", paddr);
+        }
+        /* single page allocation is provided only */
+        assert(size_bits == seL4_PageBits);
+        error = allocman_utspace_try_alloc_from_pool(data, type, size_bits, paddr, true, (cspacepath_t *)dest);
+        if (error == seL4_NoError) {
+            /***
+             * FIXME:
+             * No return cookie for the allocated object (the original untyped object ?)
+             * 'cptr' is enough for its deallocation. (But maybe in the future we should
+             * try to recycle all allocated but unused untyped object of a virtual-bitmap-tree ?)
+             */
+            *res = 0x0;
+            if (config_set(CONFIG_DEBUG_BUILD)) {
+                printf("allocman: required physical memory (%08x) allocated from CapBuddy\n");
+            }
+            return error;
+        }
+        /* If we can't allocated from a virtual-bitmap-tree, giving it up now. */
+    }
+#endif
     *res = allocman_utspace_alloc_at((allocman_t *) data, size_bits, type, (cspacepath_t*)dest, paddr, true, &error);
 
     return error;
