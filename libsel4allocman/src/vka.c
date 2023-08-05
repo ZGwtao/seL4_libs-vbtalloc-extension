@@ -146,9 +146,11 @@ static int am_vka_utspace_alloc_at (void *data, const cspacepath_t *dest, seL4_W
      */
     if (type == kobject_get_type(KOBJECT_FRAME, size_bits))
     {
+    /*
         if (config_set(CONFIG_DEBUG_BUILD)) {
             printf("allocman: required physical memory address %08x\n", paddr);
         }
+    */
         /* single page allocation is provided only */
         assert(size_bits == seL4_PageBits);
         error = allocman_utspace_try_alloc_from_pool(data, type, size_bits, paddr, true, (cspacepath_t *)dest);
@@ -160,9 +162,11 @@ static int am_vka_utspace_alloc_at (void *data, const cspacepath_t *dest, seL4_W
              * try to recycle all allocated but unused untyped object of a virtual-bitmap-tree ?)
              */
             *res = 0x0;
+        /*
             if (config_set(CONFIG_DEBUG_BUILD)) {
-                printf("allocman: required physical memory (%08x) allocated from CapBuddy\n", paddr);
+                printf("allocman: required physical memory (%08x) successfully allocated from CapBuddy\n", paddr);
             }
+        */
             return error;
         }
         /* If we can't allocated from a virtual-bitmap-tree, giving it up now. */

@@ -125,7 +125,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
      * The tree must have no less than one piece of available memory region
      * that is large enough to meet the memory request (avail_size > real_size)
      */
-    vbt_t *target_tree;
+    vbt_t *target_tree = NULL;
 
     size_t idx = /* memory pool is sorted by frame number (in bits) of the largest available memory region */
         real_size - seL4_PageBits;  /* 0, 1, 2, 4, ..., 256, 512, 1024 (2^0~10) frames */
@@ -183,8 +183,8 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
     /***
      * path to the available memory region in a virtual-bitmap-tree
      */
-    void *cookie;
-    int err;
+    void *cookie = NULL;
+    int err = -1;
     /***
      * Try getting the location of a available memory region from the target_tree.
      * A target_tree may have more than one available memory region to serve the
@@ -442,8 +442,9 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         seL4_CPtr untyped_original_cookie;
 
         if (paddr != ALLOCMAN_NO_PADDR) {
-            untyped_original_cookie = allocman_utspace_alloc_at(alloc, memory_region_bits, seL4_UntypedObject,
-                                                                    &untyped_original, paddr, canBeDev, &err);
+            untyped_original_cookie =
+                allocman_utspace_alloc_at(alloc, memory_region_bits, seL4_UntypedObject,
+                                          &untyped_original, (paddr >> BIT(memory_region_bits)) << BIT(memory_region_bits), canBeDev, &err);
         } else {
             untyped_original_cookie =
                 allocman_utspace_alloc(alloc, memory_region_bits, seL4_UntypedObject,
@@ -464,7 +465,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
          * (from the orginal untyped object's kernel information)
          */
         if (paddr != ALLOCMAN_NO_PADDR) {
-            untyped_original_paddr = paddr;
+            untyped_original_paddr = (paddr >> BIT(memory_region_bits)) << BIT(memory_region_bits);
         } else {
             untyped_original_paddr = allocman_utspace_paddr(alloc, untyped_original_cookie, memory_region_bits);
         }
