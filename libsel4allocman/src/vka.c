@@ -161,7 +161,7 @@ static int am_vka_utspace_alloc_at (void *data, const cspacepath_t *dest, seL4_W
              */
             *res = 0x0;
             if (config_set(CONFIG_DEBUG_BUILD)) {
-                printf("allocman: required physical memory (%08x) allocated from CapBuddy\n");
+                printf("allocman: required physical memory (%08x) allocated from CapBuddy\n", paddr);
             }
             return error;
         }
