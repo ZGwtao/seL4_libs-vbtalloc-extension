@@ -3,6 +3,8 @@
 
 #define VBT_NO_PADDR 1
 
+#if CONFIG_WORD_SIZE == 32
+
 #define MAPSIZE CONFIG_WORD_SIZE
 
 #define ARCH_BIT(n) (1U << n)
@@ -267,3 +269,4 @@ void arch32_vbt_make_interface(void *data)
     target->arch_release_mr = __single_level_bitmap_update_mr_released;
     target->arch_frame_offset = __single_level_bitmap_offset_operator;
 }
+#endif /* CONFIG_WORD_SIZE == 64 */
