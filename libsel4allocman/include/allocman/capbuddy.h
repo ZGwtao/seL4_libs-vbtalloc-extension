@@ -16,6 +16,12 @@ typedef struct virtual_bitmap_tree_cookie {
      */
     seL4_CPtr frames_cptr_base;
     /***
+     * start physical address of all frames
+     *   end physical address of all frames
+     */
+    uintptr_t paddr_head;
+    uintptr_t paddr_tail;
+    /***
      * pointer to the cookie of the target_tree's metadata
      */
     vbt_t *target_tree;

@@ -300,6 +300,8 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
     }
     tx = (vbt_cookie_t *)memset(tx, 0, sizeof(vbt_cookie_t));
 
+    tx->paddr_head = tree->base_physical_address;
+    tx->paddr_tail = tree->base_physical_address + (1U << 22); /* 12 page_size + 10 page_num */
     tx->frames_cptr_base = tree->frame_sequence.capPtr;
     tx->target_tree = tree;
 
