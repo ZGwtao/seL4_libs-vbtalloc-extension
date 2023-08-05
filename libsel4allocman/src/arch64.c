@@ -82,14 +82,18 @@ static void __bitmap_update_memory_region_acquired(void *data, int mr_idx)
     bitmap->map &= ~(VBT_INDEX_BIT(mr_idx));
 }
 
-static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t fn, void *res)
+static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t fn, void *res, int *err)
 {
     /* Safety check */
     assert(data);
     assert(res);
+    assert(err);
 
     address_cell_t *cell = (address_cell_t *)res;
     arch64_two_level_bitmap_t *target = (arch64_two_level_bitmap_t *)data;
+
+    /* default error status */
+    *err = -1;
 
     arch64_bitmap_t *l2 = NULL;
     arch64_bitmap_t *l1 = &target->l1;
@@ -98,6 +102,8 @@ static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t 
         int base = L1IDX(fn);
         int avail = CLZL(MASK((BITMAP_SIZE) - base) & (l1->map));
         if (avail < base * 2) {
+            /* available memory region is retrieved */
+            *err = seL4_NoError;
             cell->i1 = avail;
         }
         return;
@@ -113,6 +119,9 @@ static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t 
         int avail = CLZL(MASK((BITMAP_SIZE) - base) & (l2->map));
         
         if (avail < base * 2) {
+            /* available memory region is retrieved */
+            *err = seL4_NoError;
+            /* two-level (size < 256k) */
             cell->i1 = i;
             cell->i2 = avail;
         }
