@@ -176,7 +176,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
 
     if (target_tree == NULL) {
         /* Failed to find available tree from CapBuddy's memory pool */
-        ZF_LOGV("No available virtual-bitmap-tree has enough memory for %ld memory request", BIT(real_size));
+        /* ZF_LOGV("No available virtual-bitmap-tree has enough memory for %ld memory request", BIT(real_size)); */
         return -1;
     }
 
@@ -196,7 +196,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
         cookie = vbt_query_avail_memory_region(target_tree, real_size, &err);
     }
     if (err != seL4_NoError) {
-        ZF_LOGV("Failed to query cookie in a virtual-bitmap-tree");
+        /* ZF_LOGV("Failed to query cookie in a virtual-bitmap-tree"); */
         return err;
     }
 
@@ -414,6 +414,8 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
      *  that can be the reason to rewrite the code)
      */
 
+    paddr = paddr & 0xfffff000;
+
     err = _capbuddy_try_acquire_multiple_frames_at(
                 &alloc->utspace_capbuddy_memory_pool, paddr, size_bits, &frames_base_cptr);
     /* Failure occurred at our first approch */
@@ -444,7 +446,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         if (paddr != ALLOCMAN_NO_PADDR) {
             untyped_original_cookie =
                 allocman_utspace_alloc_at(alloc, memory_region_bits, seL4_UntypedObject,
-                                          &untyped_original, (paddr >> BIT(memory_region_bits)) << BIT(memory_region_bits), canBeDev, &err);
+                                          &untyped_original, paddr & 0xffc00000, canBeDev, &err);
         } else {
             untyped_original_cookie =
                 allocman_utspace_alloc(alloc, memory_region_bits, seL4_UntypedObject,
@@ -465,7 +467,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
          * (from the orginal untyped object's kernel information)
          */
         if (paddr != ALLOCMAN_NO_PADDR) {
-            untyped_original_paddr = (paddr >> BIT(memory_region_bits)) << BIT(memory_region_bits);
+            untyped_original_paddr = paddr & 0xffc00000;
         } else {
             untyped_original_paddr = allocman_utspace_paddr(alloc, untyped_original_cookie, memory_region_bits);
         }
