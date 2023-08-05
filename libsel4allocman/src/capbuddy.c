@@ -252,6 +252,13 @@ static int _capbuddy_try_acquire_multiple_frames(capbuddy_memory_pool_t *pool, s
     return seL4_NoError;
 }
 
+static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool, uintptr_t paddr, size_t real_size, seL4_CPtr *res)
+{
+    /* Make sure the arg 'real_size' of the requested memory region is legal */
+    assert(real_size >= seL4_PageBits);
+    return -1;
+}
+
 static int _allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
 {
     int err = -1;
@@ -366,6 +373,33 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
      * So in here, @param: frames_base_cptr = 1 (in the example)
      */
     seL4_CPtr frames_base_cptr;
+
+    if (paddr != ALLOCMAN_NO_PADDR) {
+        /* Safety check */
+        assert(canBeDev);
+        err = _capbuddy_try_acquire_multiple_frames_at(&alloc->utspace_capbuddy_memory_pool, paddr, size_bits, &frames_base_cptr);
+        if (err != seL4_NoError) {
+            ZF_LOGE("Failed to allocate pages at %016lx of size: %d\n", paddr, size_bits);
+            /* We fucked it up in here, start debugging now */
+            assert(0);
+            return err;
+        }
+        /***
+         * Initialize the return value by creating the compressed metadata
+         * for frames of the requested memory region.
+         */
+        *res = allocman_cspace_make_path(alloc, frames_base_cptr);
+        if (size_bits != seL4_PageBits) {
+            /***
+             * @param: size_bits : size in bits of the requested memory region
+             * NOTICE:
+             *  This's not the size of the memory region managing by the newly
+             *  (if any exists) created virtual-bitmap-tree.
+             */
+            res->window = BIT(size_bits - seL4_PageBits);
+        }
+        return seL4_NoError;
+    }
 
     /***
      * Try acquiring frames for the requested memory region from CapBuddy,
