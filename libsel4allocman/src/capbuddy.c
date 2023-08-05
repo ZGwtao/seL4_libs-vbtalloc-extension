@@ -111,8 +111,12 @@ static void _capbuddy_linked_list_remove(vbt_t *tree_linked_list[], vbt_t *targe
     return;
 }
 
-static int _capbuddy_try_acquire_multiple_frames(capbuddy_memory_pool_t *pool, size_t real_size, seL4_CPtr *res)
+static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool, uintptr_t paddr, size_t real_size, seL4_CPtr *res)
 {
+#undef TREE_COOKIE_DETERMINE_PADDR
+#define TREE_COOKIE_DETERMINE_PADDR(tptr, paddr) \
+    ((tptr->paddr_head <= paddr) && (tptr->paddr_tail > paddr))
+
     /* Make sure the arg 'real_size' of the requested memory region is legal */
     assert(real_size >= seL4_PageBits);
 
@@ -126,25 +130,49 @@ static int _capbuddy_try_acquire_multiple_frames(capbuddy_memory_pool_t *pool, s
     size_t idx = /* memory pool is sorted by frame number (in bits) of the largest available memory region */
         real_size - seL4_PageBits;  /* 0, 1, 2, 4, ..., 256, 512, 1024 (2^0~10) frames */
 
-    while (idx <= 10) {
+    if (paddr == ALLOCMAN_NO_PADDR) {
+        while (idx <= 10) {
+            /***
+             * As described above, 0 <= idx <= 10, and every unit in memory pool represents
+             * a linked-list for the virtual-bitmap-trees with largest available memory region
+             * of size 2^idx frames. Since no paddr is required, the query method is FCFS
+             */
+            target_tree = pool->cell[idx++];
+            /***
+             * NOTICE:
+             *  It's feasible to query a tree with larger available
+             *  memory region than the one we requested.
+             */
+            if (target_tree) {
+                /* queried */
+                break;
+            }
+        }
+        /* align */
+        idx -= 1;        
+    } else {
         /***
-         * As described above, 0 <= idx <= 10, and every unit in memory pool represents
-         * a linked-list for the virtual-bitmap-trees with largest available memory region
-         * of size 2^idx frames. Since no paddr is required, the query method is FCFS
+         * sorted by cptr, so give pool->cell up and search it with paddr in cookie list
          */
-        target_tree = pool->cell[idx++];
-        /***
-         * NOTICE:
-         *  It's feasible to query a tree with larger available
-         *  memory region than the one we requested.
-         */
-        if (target_tree) {
-            /* queried */
-            break;
+        vbt_cookie_t *tck = pool->cookie_linked_list;
+        while (tck) {
+            if (TREE_COOKIE_DETERMINE_PADDR(tck, paddr)) {
+                break;
+            }
+            tck = tck->next;
+        }
+        
+        /* If already allocated */
+        if (tck) {
+            target_tree = tck->target_tree;
+            /***
+             * FIXME:
+             *  idx can be deprecated here. Use 'largest_avail_frame_number_bits'
+             *  instead and it will be fine.
+             */
+            idx = target_tree->largest_avail_frame_number_bits - seL4_PageBits;
         }
     }
-    /* align */
-    idx -= 1;
 
     if (target_tree == NULL) {
         /* Failed to find available tree from CapBuddy's memory pool */
@@ -162,7 +190,11 @@ static int _capbuddy_try_acquire_multiple_frames(capbuddy_memory_pool_t *pool, s
      * A target_tree may have more than one available memory region to serve the
      * memory requested, so we need to find the first one.
      */
-    cookie = vbt_query_avail_memory_region(target_tree, real_size, &err);
+    if (paddr != ALLOCMAN_NO_PADDR) {
+        cookie = vbt_query_avail_memory_region_at(target_tree, real_size, paddr, &err);
+    } else {
+        cookie = vbt_query_avail_memory_region(target_tree, real_size, &err);
+    }
     if (err != seL4_NoError) {
         ZF_LOGV("Failed to query cookie in a virtual-bitmap-tree");
         return err;
@@ -250,13 +282,8 @@ static int _capbuddy_try_acquire_multiple_frames(capbuddy_memory_pool_t *pool, s
     target_tree->next = NULL;
     target_tree->prev = NULL;
     return seL4_NoError;
-}
 
-static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool, uintptr_t paddr, size_t real_size, seL4_CPtr *res)
-{
-    /* Make sure the arg 'real_size' of the requested memory region is legal */
-    assert(real_size >= seL4_PageBits);
-    return -1;
+#undef TREE_COOKIE_DETERMINE_PADDR
 }
 
 static int _allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
@@ -376,33 +403,6 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
      */
     seL4_CPtr frames_base_cptr;
 
-    if (paddr != ALLOCMAN_NO_PADDR) {
-        /* Safety check */
-        assert(canBeDev);
-        err = _capbuddy_try_acquire_multiple_frames_at(&alloc->utspace_capbuddy_memory_pool, paddr, size_bits, &frames_base_cptr);
-        if (err != seL4_NoError) {
-            ZF_LOGE("Failed to allocate pages at %016lx of size: %d\n", paddr, size_bits);
-            /* We fucked it up in here, start debugging now */
-            assert(0);
-            return err;
-        }
-        /***
-         * Initialize the return value by creating the compressed metadata
-         * for frames of the requested memory region.
-         */
-        *res = allocman_cspace_make_path(alloc, frames_base_cptr);
-        if (size_bits != seL4_PageBits) {
-            /***
-             * @param: size_bits : size in bits of the requested memory region
-             * NOTICE:
-             *  This's not the size of the memory region managing by the newly
-             *  (if any exists) created virtual-bitmap-tree.
-             */
-            res->window = BIT(size_bits - seL4_PageBits);
-        }
-        return seL4_NoError;
-    }
-
     /***
      * Try acquiring frames for the requested memory region from CapBuddy,
      * if failed, we should try to construct one new virtual-bitmap tree
@@ -414,8 +414,8 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
      *  that can be the reason to rewrite the code)
      */
 
-    err = _capbuddy_try_acquire_multiple_frames(
-                &alloc->utspace_capbuddy_memory_pool, size_bits, &frames_base_cptr);
+    err = _capbuddy_try_acquire_multiple_frames_at(
+                &alloc->utspace_capbuddy_memory_pool, paddr, size_bits, &frames_base_cptr);
     /* Failure occurred at our first approch */
     if (err != seL4_NoError) {
         /***
@@ -439,9 +439,16 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
 
         /* Why cookies? -> retrieve physical address */
         /* cookie belongs to the internal allocator, we save it here. */
-        seL4_CPtr untyped_original_cookie =
-            allocman_utspace_alloc(alloc, memory_region_bits, seL4_UntypedObject,
-                                                &untyped_original, canBeDev, &err);
+        seL4_CPtr untyped_original_cookie;
+
+        if (paddr != ALLOCMAN_NO_PADDR) {
+            untyped_original_cookie = allocman_utspace_alloc_at(alloc, memory_region_bits, seL4_UntypedObject,
+                                                                    &untyped_original, paddr, canBeDev, &err);
+        } else {
+            untyped_original_cookie =
+                allocman_utspace_alloc(alloc, memory_region_bits, seL4_UntypedObject,
+                                                    &untyped_original, canBeDev, &err);
+        }
         if (err != seL4_NoError) {
             /* return the bookkeeping value */
             allocman_cspace_free(alloc, &untyped_original);
@@ -451,12 +458,16 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
             return err;
         }
 
+        uintptr_t untyped_original_paddr;
         /***
          * Retrieve the physical address of the target memory region
          * (from the orginal untyped object's kernel information)
          */
-        uintptr_t untyped_original_paddr =
-            allocman_utspace_paddr(alloc, untyped_original_cookie, memory_region_bits);
+        if (paddr != ALLOCMAN_NO_PADDR) {
+            untyped_original_paddr = paddr;
+        } else {
+            untyped_original_paddr = allocman_utspace_paddr(alloc, untyped_original_cookie, memory_region_bits);
+        }
 
         vbt_t *target_tree;
         /***
@@ -562,7 +573,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         }
 
         /* Now, retry acquiring frames from memory pool */
-        err = _capbuddy_try_acquire_multiple_frames(&alloc->utspace_capbuddy_memory_pool, size_bits, &frames_base_cptr);
+        err = _capbuddy_try_acquire_multiple_frames_at(&alloc->utspace_capbuddy_memory_pool, paddr, size_bits, &frames_base_cptr);
         if (err != seL4_NoError) {
             ZF_LOGE("Failed to acquire frames from the newly created virtual-bitmap-tree, abort from CapBuddy");
             /***
