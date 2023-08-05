@@ -10,14 +10,18 @@
 #define CLEAR_BIT(map, n) (map &= ~(1U << (MAPSIZE - (n + 1))))
 #define CHECK_ZERO(map, n) ((map & (1U << (MAPSIZE - (n + 1)))) == 0)
 
-static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *res)
+static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *res, int *err)
 {
     /* Safety check */
     assert(data);
     assert(res);
+    assert(err);
 
     address_index_t *fx = (address_index_t *)res;
     arch32_single_level_bitmap_t *target = (arch32_single_level_bitmap_t *)data;
+
+    /* default error status */
+    *err = -1;
 
     /* base number */
     int b1 = BIT(10 - fn);
@@ -38,6 +42,7 @@ static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *re
              * otherwise do nothing as the cookie has been 'memset' before the querying
              * procedure started.
              */
+            *err = seL4_NoError;
             fx->idx = r;
         }
         return;
@@ -51,6 +56,7 @@ static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *re
     for (int i = q1; i < q2; ++i) {
         t = CLZ(target->bma[i].map);
         if (t < MAPSIZE) {
+            *err = seL4_NoError;
             fx->idx = r + t; // update cookie
             break;
         }
