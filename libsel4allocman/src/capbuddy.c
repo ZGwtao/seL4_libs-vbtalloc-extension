@@ -161,10 +161,10 @@ static int _capbuddy_try_acquire_multiple_frames(capbuddy_memory_pool_t *pool, s
      * A target_tree may have more than one available memory region to serve the
      * memory requested, so we need to find the first one.
      */
-    cookie = vbt_query_avail_memory_region(target_tree, real_size, ALLOCMAN_NO_PADDR);
+    cookie = vbt_query_avail_memory_region(target_tree, real_size);
     if (!cookie) {
         ZF_LOGE("Failed to query cookie in a virtual-bitmap-tree");
-        vbt_query_try_cookie_release(cookie);
+        /* vbt_query_try_cookie_release(cookie); */
         return -1;
     }
 
@@ -300,6 +300,8 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
     }
     tx = (vbt_cookie_t *)memset(tx, 0, sizeof(vbt_cookie_t));
 
+    tx->paddr_head = tree->base_physical_address;
+    tx->paddr_tail = tree->base_physical_address + (1U << 22); /* 12 page_size + 10 page_num */
     tx->paddr_head = tree->base_physical_address;
     tx->paddr_tail = tree->base_physical_address + (1U << 22); /* 12 page_size + 10 page_num */
     tx->frames_cptr_base = tree->frame_sequence.capPtr;

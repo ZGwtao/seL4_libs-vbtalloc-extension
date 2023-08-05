@@ -63,11 +63,10 @@ int vbt_instance_init(vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t ori
  * 
  * @param data : target virtual-bitmap-tree with architectural supports
  * @param real_size : size (number of frames + frame_size in bits) of the requested memory region
- * @param paddr : (deprecated?) physical address of the requested memory region
  * 
  * @return cookie : result, architecture dependent, passed to 'Arch_vbt_' interfaces
  */
-void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, uintptr_t paddr)
+void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size)
 {
     if (!data) {
         ZF_LOGE("vbt_data is NULL");
@@ -107,6 +106,60 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, uintptr_t pad
     cell = memset(cell, 0, sizeof(address_cell_t));
 #endif
     data->arch_query_avail_mr(data->arch_data, fn, cell);
+    return cell;
+}
+
+/***
+ * Query a virtual-bitmap-tree and try to find an available memory region at specific
+ * physical address that can serve the memory request, return 'cookie', architecture
+ * independent function
+ * 
+ * @param data : target virtual-bitmap-tree with architectural supports
+ * @param real_size : size (number of frames + frame_size in bits) of the requested memory region
+ * @param paddr : physical address of the requested memory region
+ * 
+ * @return cookie : result, architecture dependent, passed to 'Arch_vbt_' interfaces
+ */
+void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t paddr)
+{
+    if (!data) {
+        ZF_LOGE("vbt_data is NULL");
+        return NULL;
+    }
+    if (!data->arch_data) {
+        ZF_LOGE("vbt arch_data is NULL, initialize it first");
+        return NULL;
+    }
+    
+    size_t fn = real_size - seL4_PageBits;
+    /***
+     * FIXME:
+     * We don't know the cookie type when we are invoking CapBuddy interfaces
+     * to query & acquire memory regions, so it's something we can't avoid to
+     * know cookie type in here.
+     */
+    void *cell;
+#if CONFIG_WORD_SIZE == 32
+    /***
+     * It turns out that we can use frame offset in array as reference cookie
+     * in single-level virtual-bitmap-tree structure. (it will be no more
+     * than 2048 and larger than 0, 1->4M, 2~3->2M, 4~7->1M, 8~15->512k ...)
+     */
+    cell = malloc(sizeof(address_index_t));
+    if (!cell) {
+        ZF_LOGE("Failed to allocate space for vbt query cookie");
+        return NULL;
+    }
+    cell = memset(cell, 0, sizeof(address_index_t));
+#else
+    cell = malloc(sizeof(address_cell_t));
+    if (!cell) {
+        ZF_LOGE("Failed to allocate space for vbt query cookie");
+        return NULL;
+    }
+    cell = memset(cell, 0, sizeof(address_cell_t));
+#endif
+    /* data->arch_query_avail_mr(data->arch_data, fn, cell); */
     return cell;
 }
 
