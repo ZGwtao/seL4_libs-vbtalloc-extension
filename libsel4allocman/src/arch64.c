@@ -128,7 +128,7 @@ static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t 
     }
 }
 
-static size_t __two_level_bitmap_retrieve_updated_largest_avail_memory_region(void *data)
+static size_t __two_level_bitmap_update_largest(void *data)
 {
     /* Safety check */
     assert(data);
@@ -224,7 +224,6 @@ static void __two_level_bitmap_update_memory_region_acquired(void *data, const v
                 target->l2[i].map = 0ul;
             }
         }
-        //__two_level_bitmap_retrieve_updated_largest_avail_memory_region(target);
         return;
     }
 
@@ -245,7 +244,6 @@ static void __two_level_bitmap_update_memory_region_acquired(void *data, const v
     if (l2->map != 0) {
         l1->map += (VBT_INDEX_BIT(path->i1));
     }
-    //__two_level_bitmap_retrieve_updated_largest_avail_memory_region(target);
 #undef CHECK_REQUEST_L1_BASED
 }
 
@@ -275,9 +273,6 @@ static void __two_level_bitmap_update_memory_region_released(void *data, const v
                 target->l2[i].map = MASK(63) & (uint64_t)-1;
             }
         }
-
-        //__two_level_bitmap_retrieve_updated_largest_avail_memory_region(target);
-
         return;
     }
 
@@ -290,7 +285,6 @@ static void __two_level_bitmap_update_memory_region_released(void *data, const v
  */
 
     if (l2->map != MASK(63)) {
-        //__two_level_bitmap_retrieve_updated_largest_avail_memory_region(target);
         return;
     }
 
@@ -309,7 +303,6 @@ static void __two_level_bitmap_update_memory_region_released(void *data, const v
         /***
          * No need to modify the two_level_bitmap's status, just return
          */
-        //__two_level_bitmap_retrieve_updated_largest_avail_memory_region(target);
         return;
     }
 
@@ -329,8 +322,6 @@ static void __two_level_bitmap_update_memory_region_released(void *data, const v
         if (idx == 0) break;
         dtc = VBT_INDEX_BIT(idx);
     }           
-    //__two_level_bitmap_retrieve_updated_largest_avail_memory_region(target);
-
 #undef CHECK_REQUEST_L1_BASED
 }
 
@@ -406,7 +397,7 @@ void arch64_vbt_make_interface(void *data)
 /* target->arch_data interfaces */
     target->arch_data->arch_init = __two_level_bitmap_init;
 /* target interfaces */
-    target->arch_update_largest = __two_level_bitmap_retrieve_updated_largest_avail_memory_region;
+    target->arch_update_largest = __two_level_bitmap_update_largest;
     target->arch_query_avail_mr = __two_level_bitmap_try_query_avail_memory_region;
     target->arch_acquire_mr = __two_level_bitmap_update_memory_region_acquired;
     target->arch_release_mr = __two_level_bitmap_update_memory_region_released;
