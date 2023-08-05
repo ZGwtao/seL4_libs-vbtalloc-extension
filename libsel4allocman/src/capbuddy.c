@@ -164,7 +164,7 @@ static int _capbuddy_try_acquire_multiple_frames(capbuddy_memory_pool_t *pool, s
      */
     cookie = vbt_query_avail_memory_region(target_tree, real_size, &err);
     if (err != seL4_NoError) {
-        ZF_LOGE("Failed to query cookie in a virtual-bitmap-tree");
+        ZF_LOGV("Failed to query cookie in a virtual-bitmap-tree");
         return err;
     }
 
