@@ -176,7 +176,16 @@ void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t 
     }
     cell = memset(cell, 0, sizeof(address_cell_t));
 #endif
-    data->arch_query_avail_mr_at(data->arch_data, paddr, fn, cell, err);
+    /***
+     * Architectual virtual-bitmap-tree metadata does not contain physical
+     * memory address of the original untyped object, so it's not feasible
+     * to utilize paddr directly.
+     */
+    uintptr_t untyped_paddr = data->base_physical_address;
+    size_t idx = (paddr - untyped_paddr) / (1U << seL4_PageBits);
+
+    /* invoke by using index of frame instead */
+    data->arch_query_avail_mr_at(data->arch_data, idx, fn, cell, err);
     if (*err != seL4_NoError) {
         /* No available memory region for the request */
         vbt_query_try_cookie_release(cell);

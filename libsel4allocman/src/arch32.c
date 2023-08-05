@@ -12,7 +12,7 @@
 #define CLEAR_BIT(map, n) (map &= ~(1U << (MAPSIZE - (n + 1))))
 #define CHECK_ZERO(map, n) ((map & (1U << (MAPSIZE - (n + 1)))) == 0)
 
-static void __single_level_bitmap_query_avail_mr_at(void *data, uintptr_t paddr, size_t fn, void *res, int *err)
+static void __single_level_bitmap_query_avail_mr_at(void *data, size_t sidx, size_t fn, void *res, int *err)
 {
     /***
      * TODO: multiple memory region acquiring & freeing support
@@ -31,7 +31,33 @@ static void __single_level_bitmap_query_avail_mr_at(void *data, uintptr_t paddr,
      * Of course, we can implement different policies for this, but now it's
      * unnecessary.
      */
-    assert(0);
+    assert(fn == 0);
+
+    /* Safety check */
+    assert(data);
+    assert(res);
+    assert(err);
+
+    address_index_t *fx = (address_index_t *)res;
+    arch32_single_level_bitmap_t *target = (arch32_single_level_bitmap_t *)data;
+
+    /* default error status */
+    *err = -1;
+
+    if (!CHECK_ZERO(target->bma[(1024 + sidx) / MAPSIZE].map, (1024 + sidx) % MAPSIZE)) {
+        /***
+         * Destination frame is not allocated yet, return positive result and initialize
+         * the result cookie by setting its value to the frame index (sidx) + 1024, this
+         * is just because cookie should be the global index of all virtual memory regions
+         * in a virtual-bitmap-tree.
+         */
+        *err = seL4_NoError;
+        /***
+         * Initialize it, 1024 is the start of all frames, while sidx is the offset of
+         * the target frame we want
+         */
+        fx->idx = 1024 + sidx;
+    }
 }
 
 static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *res, int *err)
