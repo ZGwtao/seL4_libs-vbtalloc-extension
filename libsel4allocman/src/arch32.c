@@ -10,6 +10,28 @@
 #define CLEAR_BIT(map, n) (map &= ~(1U << (MAPSIZE - (n + 1))))
 #define CHECK_ZERO(map, n) ((map & (1U << (MAPSIZE - (n + 1)))) == 0)
 
+static void __single_level_bitmap_query_avail_mr_at(void *data, uintptr_t paddr, size_t fn, void *res, int *err)
+{
+    /***
+     * TODO: multiple memory region acquiring & freeing support
+     * 
+     * For querying contiguous multiple frames of requested memory region,
+     * it's not enough to have one acquiring method, this is becasue the
+     * requested frames may overlay with multiple virtual memory regions
+     * of their total size, e.g.
+     *                          R   <--- root
+     *                        /   \
+     *                      X1     X2   <-- virtual memory regions (same size)
+     *                     /  \   /  \
+     *                    X3 [X4 X5] X6
+     *                         ^-------- the one we want (overlay with 1,2)
+     * 
+     * Of course, we can implement different policies for this, but now it's
+     * unnecessary.
+     */
+    assert(0);
+}
+
 static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *res, int *err)
 {
     /* Safety check */
@@ -239,6 +261,7 @@ void arch32_vbt_make_interface(void *data)
     target->arch_data->arch_init = __single_level_bitmap_init;
 /* target interfaces */
     target->arch_update_largest = __single_level_bitmap_refresh_largest_avail_mr;
+    target->arch_query_avail_mr_at = __single_level_bitmap_query_avail_mr_at;
     target->arch_query_avail_mr = __single_level_bitmap_query_avail_mr;
     target->arch_acquire_mr = __single_level_bitmap_update_mr_acquired;
     target->arch_release_mr = __single_level_bitmap_update_mr_released;

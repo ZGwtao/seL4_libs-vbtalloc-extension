@@ -398,6 +398,10 @@ void arch64_vbt_make_interface(void *data)
     target->arch_data->arch_init = __two_level_bitmap_init;
 /* target interfaces */
     target->arch_update_largest = __two_level_bitmap_update_largest;
+/***
+ * TODO: instantiate this in the near future.
+ */
+    target->arch_query_avail_mr_at = NULL; /* Not implemented yet */
     target->arch_query_avail_mr = __two_level_bitmap_try_query_avail_memory_region;
     target->arch_acquire_mr = __two_level_bitmap_update_memory_region_acquired;
     target->arch_release_mr = __two_level_bitmap_update_memory_region_released;
