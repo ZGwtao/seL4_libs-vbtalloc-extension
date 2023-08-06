@@ -32,6 +32,8 @@ typedef struct virtual_bitmap_tree {
     /* current largest available memory region size in bits of frame number */
     size_t largest_avail_frame_number_bits;
     
+    int mark;
+
     arch_vbt_update_largest_fn arch_update_largest;
     arch_vbt_query_avail_mr_at_fn arch_query_avail_mr_at;
     arch_vbt_query_avail_mr_fn arch_query_avail_mr;

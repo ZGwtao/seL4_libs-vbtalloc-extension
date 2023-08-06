@@ -143,8 +143,13 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
              *  It's feasible to query a tree with larger available
              *  memory region than the one we requested.
              */
+            while (target_tree) {
+                if (target_tree->mark == 0) {
+                    break;
+                }
+                target_tree = target_tree->next;
+            }
             if (target_tree) {
-                /* queried */
                 break;
             }
         }
@@ -176,7 +181,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
 
     if (target_tree == NULL) {
         /* Failed to find available tree from CapBuddy's memory pool */
-        /* ZF_LOGV("No available virtual-bitmap-tree has enough memory for %ld memory request", BIT(real_size)); */
+        ZF_LOGE("No available virtual-bitmap-tree has enough memory for %ld memory request", BIT(real_size));
         return -1;
     }
 
@@ -196,7 +201,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
         cookie = vbt_query_avail_memory_region(target_tree, real_size, &err);
     }
     if (err != seL4_NoError) {
-        /* ZF_LOGV("Failed to query cookie in a virtual-bitmap-tree"); */
+        ZF_LOGE("Failed to query cookie in a virtual-bitmap-tree: [%08x], %d", paddr, real_size);
         return err;
     }
 
@@ -445,6 +450,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         /* cookie belongs to the internal allocator, we save it here. */
         seL4_CPtr untyped_original_cookie;
 
+        printf("start build new tree: %08x, %08x\n", paddr, paddr & 0xffc00000);
         if (paddr != ALLOCMAN_NO_PADDR) {
             untyped_original_cookie =
                 allocman_utspace_alloc_at(alloc, memory_region_bits, seL4_UntypedObject,
@@ -463,17 +469,6 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
             return err;
         }
 
-        uintptr_t untyped_original_paddr;
-        /***
-         * Retrieve the physical address of the target memory region
-         * (from the orginal untyped object's kernel information)
-         */
-        if (paddr != ALLOCMAN_NO_PADDR) {
-            untyped_original_paddr = paddr & 0xffc00000;
-        } else {
-            untyped_original_paddr = allocman_utspace_paddr(alloc, untyped_original_cookie, memory_region_bits);
-        }
-
         vbt_t *target_tree;
         /***
          * FIXME:
@@ -489,6 +484,19 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
             return err;
         }
         target_tree = (vbt_t *)memset(target_tree, 0, sizeof(vbt_t));
+
+        uintptr_t untyped_original_paddr;
+        /***
+         * Retrieve the physical address of the target memory region
+         * (from the orginal untyped object's kernel information)
+         */
+        if (paddr != ALLOCMAN_NO_PADDR) {
+            target_tree->mark = 1;
+            untyped_original_paddr = paddr & 0xffc00000;
+        } else {
+            target_tree->mark = 0;
+            untyped_original_paddr = allocman_utspace_paddr(alloc, untyped_original_cookie, memory_region_bits);
+        }
 
         /***
          * @param: frame_cptr_sequence: records the compressed metadata of frames of the
