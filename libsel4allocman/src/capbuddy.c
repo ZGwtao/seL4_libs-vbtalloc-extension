@@ -414,7 +414,9 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
      *  that can be the reason to rewrite the code)
      */
 
-    paddr = paddr & 0xfffff000;
+    if (paddr != ALLOCMAN_NO_PADDR) {
+        paddr = paddr & 0xfffff000;
+    }
 
     err = _capbuddy_try_acquire_multiple_frames_at(
                 &alloc->utspace_capbuddy_memory_pool, paddr, size_bits, &frames_base_cptr);
