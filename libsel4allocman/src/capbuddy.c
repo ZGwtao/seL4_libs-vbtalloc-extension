@@ -181,7 +181,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
 
     if (target_tree == NULL) {
         /* Failed to find available tree from CapBuddy's memory pool */
-        ZF_LOGE("No available virtual-bitmap-tree has enough memory for %ld memory request", BIT(real_size));
+        ZF_LOGV("No available virtual-bitmap-tree has enough memory for %ld memory request", BIT(real_size));
         return -1;
     }
 
@@ -201,7 +201,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
         cookie = vbt_query_avail_memory_region(target_tree, real_size, &err);
     }
     if (err != seL4_NoError) {
-        ZF_LOGE("Failed to query cookie in a virtual-bitmap-tree: [%08x], %d", paddr, real_size);
+        ZF_LOGV("Failed to query cookie in a virtual-bitmap-tree: [%08x], %d", paddr, real_size);
         return err;
     }
 
@@ -450,7 +450,6 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         /* cookie belongs to the internal allocator, we save it here. */
         seL4_CPtr untyped_original_cookie;
 
-        printf("start build new tree: %08x, %08x\n", paddr, paddr & 0xffc00000);
         if (paddr != ALLOCMAN_NO_PADDR) {
             untyped_original_cookie =
                 allocman_utspace_alloc_at(alloc, memory_region_bits, seL4_UntypedObject,
