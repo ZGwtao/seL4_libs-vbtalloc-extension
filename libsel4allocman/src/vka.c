@@ -153,7 +153,7 @@ static int am_vka_utspace_alloc_at (void *data, const cspacepath_t *dest, seL4_W
     */
         /* single page allocation is provided only */
         assert(size_bits == seL4_PageBits);
-        error = allocman_utspace_try_alloc_from_pool(data, type, size_bits, paddr, true, (cspacepath_t *)dest);
+        error = allocman_utspace_try_alloc_from_pool(data, type, size_bits, paddr, false, (cspacepath_t *)dest);
         if (error == seL4_NoError) {
             /***
              * FIXME:
