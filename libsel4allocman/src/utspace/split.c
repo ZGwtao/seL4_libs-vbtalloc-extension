@@ -70,7 +70,7 @@ static int _insert_new_node(allocman_t *alloc, struct utspace_split_node **head,
     struct utspace_split_node *node;
     node = (struct utspace_split_node *) allocman_mspace_alloc(alloc, sizeof(*node), &error);
     if (error) {
-        ZF_LOGV("Failed to allocate node of size %zu", sizeof(*node));
+        ZF_LOGE("Failed to allocate node of size %zu", sizeof(*node));
         return 1;
     }
     node->parent = NULL;
@@ -111,12 +111,60 @@ int _utspace_split_add_uts(allocman_t *alloc, void *_split, size_t num, const cs
     default:
         return -1;
     }
+#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
+
+    cspacepath_t tx;
+
+    for (i = 0; i < num; i++) {
+        if (size_bits[i] <= 22 || size_bits[i] >= 32) {
+            error = _insert_new_node(alloc, &list[size_bits[i]], uts[i], paddr ? paddr[i] : ALLOCMAN_NO_PADDR);
+            if (error != seL4_NoError) {
+                return error;
+            }
+            continue;
+        }
+        /***
+         * CapBuddy support, we should slice all large untypeds into small ones (4M at most),
+         * so we decide to do it during bootstrapping procedure.
+         */
+        int rx = 0;
+        int bx = BIT(size_bits[i] - 22);
+        int px = paddr ? paddr[i] : ALLOCMAN_NO_PADDR;
+
+        /* Retype all untypeds (larger than 4M) into 4M */
+        while (rx < bx)
+        {
+            error = allocman_cspace_alloc(alloc, &tx);
+            if (error != seL4_NoError) {
+                ZF_LOGE("Failed to allocate slot");
+                return error;
+            }
+
+            error = seL4_Untyped_Retype(uts[i].capPtr, seL4_UntypedObject, 22, tx.root, tx.dest, tx.destDepth, tx.offset, 1);
+            if (error != seL4_NoError) {
+                ZF_LOGE("Failed to allocate slot");
+                assert(0);
+            }
+
+            error = _insert_new_node(alloc, &list[22], tx, px);
+            if (error != seL4_NoError) {
+                ZF_LOGE("Failed to insert new node");
+                return error;
+            }
+            if (px != ALLOCMAN_NO_PADDR) {
+                px += (1024 * 4096);
+            }
+            rx += 1;
+        }
+    }
+#else
     for (i = 0; i < num; i++) {
         error = _insert_new_node(alloc, &list[size_bits[i]], uts[i], paddr ? paddr[i] : ALLOCMAN_NO_PADDR);
         if (error) {
             return error;
         }
     }
+#endif
     return 0;
 }
 
