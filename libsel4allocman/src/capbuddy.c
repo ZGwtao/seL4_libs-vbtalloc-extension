@@ -138,6 +138,12 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
              * of size 2^idx frames. Since no paddr is required, the query method is FCFS
              */
             target_tree = pool->cell[idx++];
+            while (target_tree) {
+                if (target_tree->mark == 0) {
+                    break;
+                }
+                target_tree = target_tree->next;
+            }
             if (target_tree) {
                 break;
             }
@@ -590,7 +596,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
             target_tree->mark = 1;
             untyped_original_paddr = paddr & 0xffc00000;
         } else {
-            target_tree->mark = 1;
+            target_tree->mark = 0;
             untyped_original_paddr = allocman_utspace_paddr(alloc, untyped_original_cookie, memory_region_bits);
         }
 

@@ -1120,6 +1120,20 @@ int allocman_add_simple_untypeds_with_regions(allocman_t *alloc, simple_t *simpl
         bool device;
         cspacepath_t path = allocman_cspace_make_path(alloc, simple_get_nth_untyped(simple, i, &size_bits, &paddr, &device));
         int dev_type = device ? ALLOCMAN_UT_DEV : ALLOCMAN_UT_KERNEL;
+#ifdef CONFIG_LIB_ALLOCMAN_ALLOW_PRE_ALLOC
+        // 4M ~ 1G size untypeds are normally be used as memory
+        if (size_bits > 22 && size_bits < 30 && paddr >= 0x40000000 && paddr <= 0x70000000) {
+            printf("paddr: %08x\n", paddr);
+            // If CapBuddy is enabled, then we try to perform some spliting operations here.
+            if (config_set(CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS)) {
+                for (int j = 0; j < BIT(size_bits - 22); ++j) {
+                    error = allocman_utspace_try_create_virtual_bitmap_tree(alloc, &path, 22 - seL4_PageBits, paddr + j * (1024 * 4096));
+                    ZF_LOGF_IF(error, "Could not create virtual-bitmap-tree from untyped");
+                }
+                continue;
+            }
+        }
+#endif
         // If it is regular UT memory, then we add cap and move on.
         if (dev_type == ALLOCMAN_UT_KERNEL) {
             error = allocman_utspace_add_uts(alloc, 1, &path, &size_bits, &paddr, dev_type);

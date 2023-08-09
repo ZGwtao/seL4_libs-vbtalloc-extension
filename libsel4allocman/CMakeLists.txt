@@ -21,6 +21,14 @@ config_option(
 )
 
 config_option(
+    LibAllocmanAllowPreAlloc
+    LIB_ALLOCMAN_ALLOW_PRE_ALLOC
+    "Pre-allocation policy for CapBuddy"
+    DEFAULT
+    OFF
+)
+
+config_option(
     LibAllocmanDebug
     LIB_ALLOCMAN_DEBUG
     ""
@@ -28,7 +36,7 @@ config_option(
     OFF
 )
 
-mark_as_advanced(LibAllocmanAllowPoolOperations LibAllocmanDebug)
+mark_as_advanced(LibAllocmanAllowPoolOperations LibAllocmanDebug LibAllocmanAllowPreAlloc)
 add_config_library(sel4allocman "${configure_string}")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
