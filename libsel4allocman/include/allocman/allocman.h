@@ -271,6 +271,8 @@ seL4_Word allocman_utspace_alloc(allocman_t *alloc, size_t size_bits, seL4_Word 
 void allocman_utspace_free(allocman_t *alloc, seL4_Word cookie, size_t size_bits);
 
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
+int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const cspacepath_t *ut,
+                                                    size_t fn, uintptr_t paddr);
 
 int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, seL4_Word size_bits,
                                          uintptr_t paddr, bool canBeDev, cspacepath_t *res);
