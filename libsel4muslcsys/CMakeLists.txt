@@ -14,7 +14,7 @@ config_string(LibSel4MuslcSysMorecoreBytes LIB_SEL4_MUSLC_SYS_MORECORE_BYTES "Ma
     This value sets the number of bytes reserved for the region malloc \
     allocates from. Note that you won't actually be able to allocate this \
     entire amount because there is some bookkeeping overhead. This area is \
-    allocated statically." DEFAULT 1048576 UNQUOTE)
+    allocated statically." DEFAULT 2097152 UNQUOTE)
 
 config_option(
     LibSel4MuslcSysDebugHalt
