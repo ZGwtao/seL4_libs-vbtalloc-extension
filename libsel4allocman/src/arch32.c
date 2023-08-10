@@ -1,5 +1,6 @@
 
 #include <allocman/capbuddy.h>
+#include <kernel/gen_config.h>
 
 #define VBT_NO_PADDR 1
 
@@ -86,7 +87,15 @@ static void __single_level_bitmap_query_avail_mr(void *data, size_t fn, void *re
          * So we have to handled the included very first reserved bit.
          */
         int r = CLZ(target->bma[0].map); // query result
-        if (r < b2 && r >= b1) {
+        if (r < b1) {
+            *err = seL4_NoError;
+            for (int i = b1; i < b2; ++i) {
+                if (!CHECK_ZERO(target->bma[0].map, i)) {
+                    fx->idx = i;
+                    break;
+                }
+            }
+        } else if (r < b2 && r >= b1) {
             /***
              * If valid query result is found, set cookie value to its result and return,
              * otherwise do nothing as the cookie has been 'memset' before the querying
