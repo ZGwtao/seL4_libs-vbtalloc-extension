@@ -82,6 +82,52 @@ static void __bitmap_update_memory_region_acquired(void *data, int mr_idx)
     bitmap->map &= ~(VBT_INDEX_BIT(mr_idx));
 }
 
+static void __two_level_bitmap_try_query_avail_memory_region_at(void *data, size_t sidx, /* frame index */
+                                                                size_t fn, void *res, int *err)
+{
+#undef MAPSIZE_FRAME
+#define MAPSIZE_FRAME 32
+    assert(fn == 0);
+
+    /* Safety check */
+    assert(data);
+    assert(res);
+    assert(err);
+
+    address_cell_t *cell = (address_cell_t *)res;
+    arch64_two_level_bitmap_t *target = (arch64_two_level_bitmap_t *)data;
+
+    *err = -1;
+
+    arch64_bitmap_t *l1 = &target->l1; /* original level-1 bitmap */
+    arch64_bitmap_t *l2 = NULL; /* Potential level-2 bitmap */
+
+    if (fn > BITMAP_LEVEL) {
+        /* Not implemented yet. */
+        return;
+    }
+
+    if (!VBT_AND(l1->map, VBT_INDEX_BIT(32 + (sidx / MAPSIZE_FRAME)))) {
+        /* Target frame is currently unavailable */
+        return;
+    }
+
+    /* Target level-2 bitmap to be queired */
+    l2 = &target->l2[sidx / MAPSIZE_FRAME];
+
+    if (!VBT_AND(l2->map, VBT_INDEX_BIT(32 + (sidx % MAPSIZE_FRAME)))) {
+        /* Target frame is currently unavailable */
+        return;
+    }
+
+    *err = seL4_NoError;
+
+    cell->i1 = 32 + (sidx / MAPSIZE_FRAME);
+    cell->i2 = 32 + (sidx % MAPSIZE_FRAME);
+
+#undef MAPSIZE_FRAME
+}
+
 static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t fn, void *res, int *err)
 {
     /* Safety check */
@@ -401,7 +447,7 @@ void arch64_vbt_make_interface(void *data)
 /***
  * TODO: instantiate this in the near future.
  */
-    target->arch_query_avail_mr_at = NULL; /* Not implemented yet */
+    target->arch_query_avail_mr_at = __two_level_bitmap_try_query_avail_memory_region_at;
     target->arch_query_avail_mr = __two_level_bitmap_try_query_avail_memory_region;
     target->arch_acquire_mr = __two_level_bitmap_update_memory_region_acquired;
     target->arch_release_mr = __two_level_bitmap_update_memory_region_released;
