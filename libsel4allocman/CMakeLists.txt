@@ -28,6 +28,16 @@ config_option(
     OFF
 )
 
+config_option(
+    LibAllocmanSplitCapBuddyEnable
+    LIB_ALLOCMAN_SPLIT_CAPBUDDY_ENABLE
+    "Cut large untyped objects into 4M pieces during untyped adding \
+    procedure when bootstrapping allocman utspace 'split' allocator \
+    to enjoy CapBuddy support -> stop using the split-based CapBuddy."
+    DEFAULT
+    OFF
+)
+
 mark_as_advanced(LibAllocmanAllowPoolOperations LibAllocmanDebug)
 add_config_library(sel4allocman "${configure_string}")
 
