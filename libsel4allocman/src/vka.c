@@ -143,30 +143,40 @@ static int am_vka_utspace_alloc_at (void *data, const cspacepath_t *dest, seL4_W
      * CBD:
      * We may implement CapBuddy support for typical physical address from here.
      * To make it sure that it works, we now only support single-page allocation.
+     * FIXME:
+     * Maybe we should not implement CapBuddy in here, as it has imported extra
+     * system call overhead (for copying the capability of a frame from CapBuddy
+     * memory pool to the already allocated, which could have been assigned with
+     * the capability of target frame, destination cslot)
      */
-    if (type == kobject_get_type(KOBJECT_FRAME, size_bits))
-    {
-    /*
-        if (config_set(CONFIG_DEBUG_BUILD)) {
-            printf("allocman: required physical memory address %08x\n", paddr);
-        }
-    */
+    if (type == kobject_get_type(KOBJECT_FRAME, size_bits)) {
+        cspacepath_t temp_dest;
         /* single page allocation is provided only */
         assert(size_bits == seL4_PageBits);
-        error = allocman_utspace_try_alloc_from_pool(data, type, size_bits, paddr, false, (cspacepath_t *)dest);
+        error = allocman_utspace_try_alloc_from_pool(data, type, size_bits, paddr, false, &temp_dest);
         if (error == seL4_NoError) {
-            /***
-             * FIXME:
-             * No return cookie for the allocated object (the original untyped object ?)
-             * 'cptr' is enough for its deallocation. (But maybe in the future we should
-             * try to recycle all allocated but unused untyped object of a virtual-bitmap-tree ?)
-             */
-            *res = 0x0;
-        /*
-            if (config_set(CONFIG_DEBUG_BUILD)) {
-                printf("allocman: required physical memory (%08x) successfully allocated from CapBuddy\n", paddr);
+            /* destination cslot is constant value */
+            /* Is it possible to remove this system call? */
+            error = seL4_CNode_Copy(
+                        dest->root,
+                        dest->capPtr,
+                        dest->capDepth,
+                        temp_dest.root,
+                        temp_dest.capPtr,
+                        temp_dest.capDepth,
+                        seL4_AllRights
+                    );
+            if (error != seL4_NoError) {
+                ZF_LOGE("Failed to copy cap of frame from CapBuddy to destination cslot");
+            } else {
+                /***
+                 * FIXME:
+                 * No return cookie for the allocated object (the original untyped object ?)
+                 * 'cptr' is enough for its deallocation. (But maybe in the future we should
+                 * try to recycle all allocated but unused untyped object of a virtual-bitmap-tree ?)
+                 */
+                *res = 0x0;
             }
-        */
             return error;
         }
         /* If we can't allocated from a virtual-bitmap-tree, giving it up now. */
