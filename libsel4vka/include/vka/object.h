@@ -45,26 +45,34 @@ static inline int vka_alloc_object_at_maybe_dev(vka_t *vka, seL4_Word type, seL4
     cspacepath_t path;
 
 #ifdef CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS
-    if (paddr == VKA_NO_PADDR &&
-        type == kobject_get_type(KOBJECT_FRAME, 12)) {
-        error = vka_utspace_try_alloc_from_pool(vka, type, size_bits, paddr, can_use_dev, &path);
-        if (error == 0) {
-            if (path.capPtr)
-            {
-                result->ut = 0;
-                result->type = type;
-                result->size_bits = size_bits;
-                result->cptr = path.capPtr;
-            /*
-                if (config_set(CONFIG_DEBUG_BUILD)) {
-                    printf("[CapBuddy triggered] ");
-                }
-            */
-                return error;
-            }
+
+    if (type == kobject_get_type(KOBJECT_FRAME, 12)) {
+
+        error =
+            vka_utspace_try_alloc_from_pool(vka, size_bits, paddr, can_use_dev, &path);
+
+        if (error == seL4_NoError) {
+
+            /* Successfully allocated from the CapBuddy memory pool */
+
+            if (path.capPtr == 0)
+                ZF_LOGE("Internel allocator error: return empty frame cptr from CapBuddy");
+
+            /* When we get here, everything is cool */
+
+            result->ut = 0x0;
+            result->type = type;
+            result->size_bits = size_bits;
+            result->cptr = path.capPtr;
+            
+            return seL4_NoError;
         }
+
+        ZF_LOGV("Failed to allocate frames from CapBuddy: size [%zu] paddr [%016lx]", size_bits, paddr);
     }
-#endif
+
+#endif /* CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS */
+
     error = vka_cspace_alloc(vka, &result->cptr);
     if (unlikely(error)) {
         result->cptr = 0;
@@ -312,8 +320,7 @@ static inline int vka_alloc_frame_contiguous(vka_t *vka, uint32_t blk_size_bits,
     assert(blk_size_bits >= 12);
 
     cspacepath_t blk;
-    seL4_Word type = kobject_get_type(KOBJECT_FRAME, 12);
-    error = vka_utspace_try_alloc_from_pool(vka, type, blk_size_bits, VKA_NO_PADDR, false, &blk);
+    error = vka_utspace_try_alloc_from_pool(vka, blk_size_bits, VKA_NO_PADDR, false, &blk);
     if (error) {
         ZF_LOGE("Failed to alloc contiguous frames from pool in full");
         return error;
@@ -321,7 +328,7 @@ static inline int vka_alloc_frame_contiguous(vka_t *vka, uint32_t blk_size_bits,
     
     blk_metadata->cptr = blk.capPtr;
     blk_metadata->size_bits = blk_size_bits;
-    blk_metadata->type = type;
+    blk_metadata->type = kobject_get_type(KOBJECT_FRAME, seL4_PageBits);
     blk_metadata->ut = 0;
 
     *frame_num = blk.window;

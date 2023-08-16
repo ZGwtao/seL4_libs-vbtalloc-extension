@@ -525,7 +525,7 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
     return seL4_NoError;
 }
 
-int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t size_bits,
+int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t size_bits,
                                          uintptr_t paddr, bool canBeDev, cspacepath_t *res)
 {
     int err = -1;

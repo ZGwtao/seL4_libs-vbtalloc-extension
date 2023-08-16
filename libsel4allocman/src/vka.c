@@ -153,7 +153,7 @@ static int am_vka_utspace_alloc_at (void *data, const cspacepath_t *dest, seL4_W
         cspacepath_t temp_dest;
         /* single page allocation is provided only */
         assert(size_bits == seL4_PageBits);
-        error = allocman_utspace_try_alloc_from_pool(data, type, size_bits, paddr, false, &temp_dest);
+        error = allocman_utspace_try_alloc_from_pool(data, size_bits, paddr, false, &temp_dest);
         if (error == seL4_NoError) {
             /* destination cslot is constant value */
             /* Is it possible to remove this system call? */
@@ -220,72 +220,17 @@ static uintptr_t am_vka_utspace_paddr (void *data, seL4_Word target, seL4_Word t
 
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
 
-static int am_vka_utspace_try_alloc_from_pool(void *data, seL4_Word type, seL4_Word size_bits,
-                                         uintptr_t paddr, bool can_use_dev, cspacepath_t *res)
+static int am_vka_utspace_try_alloc_from_pool(void *data, seL4_Word size_bits, uintptr_t paddr, bool can_use_dev, cspacepath_t *res)
 {
     assert(data);
     assert(res);
 
-    if (paddr == ALLOCMAN_NO_PADDR)
-    {
-        size_t real_size;
-        /***
-         * real_size: size of 'single' kernel object.
-         * size_bits: size of 'multiple' kernel object.
-         */
-        real_size = vka_get_object_size(type, size_bits);
-        if (real_size == 0) {
+    if (seL4_PageBits != size_bits) {
+        if (size_bits < seL4_PageBits || size_bits > (seL4_PageBits + 10)) {
             return -1;
         }
-        /***
-         * FIXME:
-         *   Is it available to assert all object types, transfered into this function,
-         *   are frame object ? (Not confirmed yet)
-         */
-        /* assert(type == kobject_get_type(KOBJECT_FRAME, 12)); */
-    //!
-    //!TODO: any better solotions?
-    //!  (sel4test: test 61 PT0001)
-    //!  (sel4test: test 112 VSPACE0001)
-    //!
-        if (type == kobject_get_type(KOBJECT_FRAME, 12) && real_size != size_bits) {
-            /***
-             * NOTICE:
-             *  Since it's possible that allocation requirements are not single frame-wise,
-             *  which means it's feasible to allocate more than one frame per allocation,
-             *  CapBuddy allows 'size_bits' equals to pow(2, n) * frame_size to represent
-             *  a memory region consists of multiple frames.
-             */
-            if (size_bits < 12 || size_bits > 22) {
-                /***
-                 * FIXME:
-                 *   double-check available memory region size
-                 *   if larger than 4M or smaller than 4K,
-                 *   return an error and exit from CapBuddy.
-                 */
-                return -1;
-            }
-            real_size = size_bits;
-        }
-
-        /***
-         * FIXME:
-         *   'can_be_dev' now is set to 'false', which means CapBuddy is totally RAM based,
-         *   but is it proper to say device-memory untypeds are not available for CapBuddy?
-         */
-        int err;
-        err = allocman_utspace_try_alloc_from_pool((allocman_t *)data, type,
-                                                    real_size, ALLOCMAN_NO_PADDR, false, res);
-        return err;
-    } else {
-        /***
-         * XXX:
-         * CapBuddy now only supports frame-object allocations from pool,
-         * Pool service for other kernel-objects is not implemented yet.
-         */
-        ZF_LOGE("Pools for other objects are not implemented yet.");
     }
-    return -1;
+    return allocman_utspace_try_alloc_from_pool((allocman_t *)data, size_bits, paddr, false, res);
 }
 
 static void am_vka_utspace_try_free_from_pool(void *data, seL4_CPtr cptr)

@@ -89,7 +89,7 @@ typedef int (*vka_utspace_alloc_maybe_device_fn)(void *data, const cspacepath_t 
 
 #ifdef CONFIG_LIB_VKA_ALLOW_POOL_OPERATIONS
 
-typedef int (*vka_utspace_try_alloc_from_pool_fn)(void *data, seL4_Word type, seL4_Word size_bits,
+typedef int (*vka_utspace_try_alloc_from_pool_fn)(void *data, seL4_Word size_bits,
                                                   uintptr_t paddr, bool can_use_dev, cspacepath_t *res);
 typedef void (*vka_utspace_try_free_from_pool_fn)(void *data, seL4_CPtr cptr);
 typedef int (*vka_cspace_is_from_pool_fn)(void *data, seL4_CPtr cptr);
@@ -323,7 +323,7 @@ static inline uintptr_t vka_utspace_paddr(vka_t *vka, seL4_Word target, seL4_Wor
  * If we use it to allocate an object, we may probably not need to allocate a new cspace slot.
  * Make a new cspace path to the CPtr of the allocated object would be fair enough.
  */
-static inline int vka_utspace_try_alloc_from_pool(vka_t *vka, seL4_Word type, seL4_Word size_bits,
+static inline int vka_utspace_try_alloc_from_pool(vka_t *vka, seL4_Word size_bits,
                                                   uintptr_t paddr, bool can_use_dev, cspacepath_t *res)
 {
     if (!vka) {
@@ -336,7 +336,7 @@ static inline int vka_utspace_try_alloc_from_pool(vka_t *vka, seL4_Word type, se
         return -1;
     }
 
-    return vka->utspace_try_alloc_from_pool(vka->data, type, size_bits, paddr, can_use_dev, res);
+    return vka->utspace_try_alloc_from_pool(vka->data, size_bits, paddr, can_use_dev, res);
 }
 
 static inline void vka_utspace_try_free_from_pool(vka_t *vka, seL4_CPtr cptr)
