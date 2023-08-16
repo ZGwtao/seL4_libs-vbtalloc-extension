@@ -33,7 +33,7 @@ int vbt_instance_init(vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t ori
 
     data->base_physical_address = paddr;
     data->frame_sequence = fcs;
-    data->largest_avail_frame_number_bits = origin_size_bits;
+    data->largest_avail = origin_size_bits;
 
 #if CONFIG_WORD_SIZE == 32
     data->arch_data = (arch32_single_level_bitmap_t *)malloc(sizeof(arch32_single_level_bitmap_t));
@@ -223,7 +223,7 @@ void vbt_update_memory_region_acquired(vbt_t *data, void *cookie)
         return;
     }
     data->arch_acquire_mr(data->arch_data, cookie);
-    data->largest_avail_frame_number_bits = data->arch_update_largest(data->arch_data);
+    data->largest_avail = data->arch_update_largest(data->arch_data);
 }
 
 /***
@@ -252,7 +252,7 @@ void vbt_update_memory_region_released(vbt_t *data, seL4_CPtr cptr)
     cell.i2 = 32 + (cptr - data->frame_sequence.capPtr) % 32;
 #endif
     data->arch_release_mr(data->arch_data, &cell);
-    data->largest_avail_frame_number_bits = data->arch_update_largest(data->arch_data);
+    data->largest_avail = data->arch_update_largest(data->arch_data);
 }
 
 seL4_CPtr vbt_calculate_target_frame_cptr_offset(vbt_t *data, const void *cookie)

@@ -161,10 +161,10 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
             target_tree = tck->target_tree;
             /***
              * FIXME:
-             *  idx can be deprecated here. Use 'largest_avail_frame_number_bits'
+             *  idx can be deprecated here. Use 'largest_avail'
              *  instead and it will be fine.
              */
-            idx = target_tree->largest_avail_frame_number_bits - seL4_PageBits;
+            idx = target_tree->largest_avail - seL4_PageBits;
         }
     }
 
@@ -215,7 +215,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
 
     vbt_query_try_cookie_release(cookie);
 
-    if (target_tree->largest_avail_frame_number_bits == (idx + seL4_PageBits)) {
+    if (target_tree->largest_avail == (idx + seL4_PageBits)) {
         /***
          * Only happens when target_tree has more than 1 available
          * memory region to serve the memory request, which means
@@ -232,12 +232,12 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
      * to meet other memory requests, we need to add it back to the memory
      * pool, otherwise add it to the 'empty' list.
      */
-    if (target_tree->largest_avail_frame_number_bits != 0) {
+    if (target_tree->largest_avail != 0) {
         /***
          * It the updated virtual-bitmap-tree has a different maximum available
          * memory region size, we need to insert it into a new tree linked-list.
          */
-        idx = target_tree->largest_avail_frame_number_bits - seL4_PageBits;
+        idx = target_tree->largest_avail - seL4_PageBits;
         /* do the insertion */
         _capbuddy_linked_list_insert(&pool->cell[idx], target_tree);
         return seL4_NoError;
@@ -395,8 +395,8 @@ static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *al
     vbt_t *target = tck->target_tree;
 
     if (target != NULL) {
-        assert(target->largest_avail_frame_number_bits);
-        _capbuddy_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail_frame_number_bits - seL4_PageBits], target);
+        assert(target->largest_avail);
+        _capbuddy_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail - seL4_PageBits], target);
         free(target);
     }
 
@@ -645,14 +645,14 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
      * in case that this size may change if we are going to do some
      * releasing operations.
      */
-    size_t largest_avail_frame_number_bits = target->largest_avail_frame_number_bits;
+    size_t largest_avail = target->largest_avail;
     /***
      * FIXME:
      */
     vbt_update_memory_region_released(target, cptr);
 
     /* No status change, just return then */
-    if (largest_avail_frame_number_bits == target->largest_avail_frame_number_bits) {
+    if (largest_avail == target->largest_avail) {
         /***
          * Only happens when target virtual-bitmap-tree has larger available memory
          * region than the one that requested to be free'd and its largest available
@@ -661,15 +661,15 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
         return;
     }
     /* Safety checks */
-    assert(largest_avail_frame_number_bits < target->largest_avail_frame_number_bits);
-    assert(largest_avail_frame_number_bits <= 10 + seL4_PageBits);
+    assert(largest_avail < target->largest_avail);
+    assert(largest_avail <= 10 + seL4_PageBits);
 
     /* If the released memory region was from a normal cell */
-    if (largest_avail_frame_number_bits) {
+    if (largest_avail) {
         /* Remove it from its original (normal cell) list */
-        _capbuddy_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[largest_avail_frame_number_bits - seL4_PageBits], target);
+        _capbuddy_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[largest_avail - seL4_PageBits], target);
         /* Insert it into where it should be */
-        _capbuddy_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail_frame_number_bits - seL4_PageBits], target);
+        _capbuddy_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail - seL4_PageBits], target);
         return;
     }
 
@@ -700,7 +700,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
     tx->prev = NULL;
 
     /* Insert it into where it should be */
-    _capbuddy_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail_frame_number_bits - seL4_PageBits], target);
+    _capbuddy_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail - seL4_PageBits], target);
 #undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 }
 

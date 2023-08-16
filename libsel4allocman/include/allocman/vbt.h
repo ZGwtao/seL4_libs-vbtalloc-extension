@@ -30,7 +30,7 @@ typedef struct virtual_bitmap_tree {
     /* compressed metadata for frames retyped from the original untyped */
     cspacepath_t frame_sequence;
     /* current largest available memory region size in bits of frame number */
-    size_t largest_avail_frame_number_bits;
+    size_t largest_avail;
     
     int mark;
 
