@@ -230,7 +230,7 @@ static int am_vka_utspace_try_alloc_from_pool(void *data, seL4_Word size_bits, u
             return -1;
         }
     }
-    return allocman_utspace_try_alloc_from_pool((allocman_t *)data, size_bits, paddr, false, res);
+    return allocman_utspace_try_alloc_from_pool((allocman_t *)data, size_bits, paddr, can_use_dev, res);
 }
 
 static void am_vka_utspace_try_free_from_pool(void *data, seL4_CPtr cptr)
