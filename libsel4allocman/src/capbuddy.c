@@ -505,17 +505,6 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
      */
     seL4_CPtr frames_base_cptr;
 
-    /***
-     * Try acquiring frames for the requested memory region from CapBuddy,
-     * if failed, we should try to construct one new virtual-bitmap tree
-     * first, insert it into the memory pool (of CapBuddy), and we'll do
-     * it again.
-     * TODO:
-     *  What it we failed at the second time? Should we try constructing
-     *  new trees in an infinate loop? (I don't think that's proper and
-     *  that can be the reason to rewrite the code)
-     */
-
     if (paddr != ALLOCMAN_NO_PADDR) {
         paddr = paddr & 0xfffff000;
     }
@@ -526,12 +515,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
     /* Failure occurred at our first approch */
     if (err != seL4_NoError) {
 
-        /* Allocated metadata before we truely allocating the capability */
         cspacepath_t untyped_original;
-        /***
-         * Try allocate cspace_path for the original untyped object so
-         * as we can access to it under current cspace and move on.
-         */
         err = allocman_cspace_alloc(alloc, &untyped_original);
         if (err != seL4_NoError) {
             ZF_LOGE("Failed to alloc slot for original untyped object.");
@@ -552,7 +536,6 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
                                                     &untyped_original, canBeDev, &err);
         }
         if (err != seL4_NoError) {
-            /* return the bookkeeping value */
             allocman_cspace_free(alloc, &untyped_original);
             if (config_set(CONFIG_LIB_ALLOCMAN_DEBUG)) {
                 ZF_LOGE("Failed to allocate original untyped object of size: %ld", BIT(10 + seL4_PageBits));
@@ -587,18 +570,8 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         }
     }
 
-    /***
-     * Initialize the return value by creating the compressed metadata
-     * for frames of the requested memory region.
-     */
     *res = allocman_cspace_make_path(alloc, frames_base_cptr);
     if (size_bits != seL4_PageBits) {
-        /***
-         * @param: size_bits : size in bits of the requested memory region
-         * NOTICE:
-         *  This's not the size of the memory region managing by the newly
-         *  (if any exists) created virtual-bitmap-tree.
-         */
         res->window = BIT(size_bits - seL4_PageBits);
     }
     return 0;
