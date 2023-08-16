@@ -372,6 +372,51 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
 #undef TREE_COOKIE_COMPARE_CPTR
 }
 
+static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *alloc, seL4_CPtr fbcptr)
+{
+#undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
+#define TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(a,b) \
+                                (a >= b && a < b + 1024)
+    /* Safety check */
+    assert(alloc->utspace_capbuddy_memory_pool.cookie_linked_list);
+
+    vbt_cookie_t *tck;
+    /* Try retrieving target virtual-bitmap-tree */
+    tck = alloc->utspace_capbuddy_memory_pool.cookie_linked_list;
+    while (tck) {
+        if (TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(fbcptr, tck->frames_cptr_base)) {
+            break;
+        }
+        tck = tck->next;
+    }
+    /* Safety check */
+    assert(TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(fbcptr, tck->frames_cptr_base));
+
+    vbt_t *target = tck->target_tree;
+
+    if (target != NULL) {
+        assert(target->largest_avail_frame_number_bits);
+        _capbuddy_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail_frame_number_bits - seL4_PageBits], target);
+        free(target);
+    }
+
+    if (tck->prev) {
+        tck->prev->next = tck->next;
+    }
+    if (tck->next) {
+        tck->next->prev = tck->prev;
+    }
+    if (tck == alloc->utspace_capbuddy_memory_pool.cookie_linked_list) {
+        alloc->utspace_capbuddy_memory_pool.cookie_linked_list = tck->next;
+    }
+    tck->next = NULL;
+    tck->prev = NULL;
+
+    free(tck);
+
+#undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
+}
+
 int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const cspacepath_t *ut, size_t fn, uintptr_t paddr)
 {
     int err = -1;
@@ -560,12 +605,9 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
                 ZF_LOGE("Failed to revoke the original untyped object's cap to delete all frames' capabilities");
                 return err;
             }
+            _allocman_utspace_subtract_virtual_bitmap_tree_cookie(alloc, frames_base_cptr);
             allocman_utspace_free(alloc, untyped_original_cookie, 10 + seL4_PageBits);
             allocman_cspace_free(alloc, &untyped_original);
-            /***
-             * TODO:
-             *  Free target tree !
-             */
             return err;
         }
     }
