@@ -1,0 +1,3 @@
+[submodule "libsel4resmcore"]
+	path = libsel4resmcore
+	url = git@github.com:ZGwtao/libsel4resmcore.git
