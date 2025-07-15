@@ -389,9 +389,6 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
 
 static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *alloc, seL4_CPtr fbcptr)
 {
-#undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
-#define TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(a,b) \
-                                (a >= b && a < b + 1024)
     /* Safety check */
     assert(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree);
 
@@ -402,9 +399,6 @@ static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *al
         /* internal capbuddy allocator error */
         assert(0);
     }
-    /* Safety check */
-    assert(TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(fbcptr, tck->frames_cptr_base));
-
     vbt_t *target = tck->target_tree;
 
     if (target != NULL) {
@@ -413,10 +407,8 @@ static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *al
         allocman_mspace_free(alloc, target, sizeof(vbt_t));
     }
 
-    remove_vbt_tree_node(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, tck);
+    sglib_node_vbtree_delete(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, tck);
     allocman_mspace_free(alloc, tck, sizeof(node_vbtree));
-
-#undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 }
 
 int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const cspacepath_t *ut, size_t fn, uintptr_t paddr)
