@@ -316,29 +316,6 @@ static int _capbuddy_try_acquire_multiple_frames_at(allocman_t *alloc, uintptr_t
         _capbuddy_linked_list_insert(&pool->cell[idx], target_tree);
         return seL4_NoError;
     }
-
-    vbt_t *tx = pool->useup;
-    /* Add target tree into the empty list */
-    if (tx) {
-        /* FCFS */
-        while (tx->next) {
-            tx = tx->next;
-        }
-        tx->next = target_tree;
-        /* Released from original list */
-        if (target_tree->prev) {
-            target_tree->prev->next = target_tree->next;
-        }
-        if (target_tree->next) {
-            target_tree->next->prev = target_tree->prev;
-        }
-        /* (TAIL) Insert into empty list */
-        target_tree->prev = tx;
-        target_tree->next = NULL;
-        return seL4_NoError;
-    }
-    /* Add it as the first one */
-    pool->useup = target_tree;
     /* Released from original list */
     if (target_tree->next) {
         target_tree->next->prev = target_tree->prev;
@@ -686,37 +663,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
     if (largest_avail) {
         /* Remove it from its original (normal cell) list */
         _capbuddy_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[largest_avail - seL4_PageBits], target);
-        /* Insert it into where it should be */
-        _capbuddy_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail - seL4_PageBits], target);
-        return;
     }
-
-    /* If it was from a useup cell */
-    vbt_t *tx;
-    
-    /* Try finding it from the useup list */
-    tx = alloc->utspace_capbuddy_memory_pool.useup;
-    while (tx) {
-        if (tx == target) {
-            break;
-        }
-        tx = tx->next;
-    }
-    assert(tx == target);
-    /* Remove it from the original (useup cell) list */
-    if (tx->prev) {
-        tx->prev->next = tx->next;
-    }
-    if (tx->next) {
-        tx->next->prev = tx->prev;
-    }
-    /* If we are cutting down the head of the list */
-    if (target == alloc->utspace_capbuddy_memory_pool.useup) {
-        alloc->utspace_capbuddy_memory_pool.useup = target->next;
-    }
-    tx->next = NULL;
-    tx->prev = NULL;
-
     /* Insert it into where it should be */
     _capbuddy_linked_list_insert(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail - seL4_PageBits], target);
 #undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B

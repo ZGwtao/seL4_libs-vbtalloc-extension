@@ -36,11 +36,7 @@ typedef struct node_vbtree {
 } node_vbtree;
 
 typedef struct capbuddy_memory_pool {
-
     vbt_t *cell[11];
-
-    vbt_t *useup;
-
     /* try replace O(n) list with O(logn) for searching */
     node_vbtree *cookie_rb_tree;
 } capbuddy_memory_pool_t;
