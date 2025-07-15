@@ -111,8 +111,18 @@ static void _capbuddy_linked_list_remove(vbt_t *tree_linked_list[], vbt_t *targe
     return;
 }
 
-static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool, uintptr_t paddr, size_t real_size, seL4_CPtr *res)
+static int _capbuddy_try_acquire_multiple_frames_at(allocman_t *alloc, uintptr_t paddr, size_t real_size, seL4_CPtr *res)
 {
+    if (!alloc) {
+        ZF_LOGE("No allocator is given");
+        return -1;
+    }
+    if (&alloc->utspace_capbuddy_memory_pool == NULL) {
+        ZF_LOGE("No capbuddy memory pool is given");
+        return -1;
+    }
+    capbuddy_memory_pool_t *pool = (capbuddy_memory_pool_t *)(&alloc->utspace_capbuddy_memory_pool);
+
 #undef TREE_COOKIE_DETERMINE_PADDR
 #define TREE_COOKIE_DETERMINE_PADDR(tptr, paddr) \
     ((tptr->paddr_head <= paddr) && (tptr->paddr_tail > paddr))
@@ -185,9 +195,9 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
      * memory requested, so we need to find the first one.
      */
     if (paddr != ALLOCMAN_NO_PADDR) {
-        cookie = vbt_query_avail_memory_region_at(target_tree, real_size, paddr, &err);
+        cookie = vbt_query_avail_memory_region_at(alloc, target_tree, real_size, paddr, &err);
     } else {
-        cookie = vbt_query_avail_memory_region(target_tree, real_size, &err);
+        cookie = vbt_query_avail_memory_region(alloc, target_tree, real_size, &err);
     }
     if (err != seL4_NoError) {
         ZF_LOGV("Failed to query cookie in a virtual-bitmap-tree: [%08x], %d", paddr, real_size);
@@ -213,7 +223,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(capbuddy_memory_pool_t *pool
     *res = target_tree->frame_sequence.capPtr + /* the first frame among the whole memory region managing by the tree */
                 vbt_calculate_target_frame_cptr_offset(target_tree, cookie); /* base + offset, so this is the offset */
 
-    vbt_query_try_cookie_release(cookie);
+    vbt_query_try_cookie_release(alloc, cookie);
 
     if (target_tree->largest_avail == (idx + seL4_PageBits)) {
         /***
@@ -312,11 +322,12 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
 #define TREE_COOKIE_COMPARE_CPTR(c1, c2, cmp) \
     (c1->frames_cptr_base cmp c2->frames_cptr_base)
 
+    int err;
     vbt_cookie_t *tx;
     /* Allocate space for new cookie's metadata */
-    tx = (vbt_cookie_t *)malloc(sizeof(vbt_cookie_t));
-    if (!tx) {
-        /* Failed to malloc new tree_cookie */
+    tx = (vbt_cookie_t *)allocman_mspace_alloc(alloc, sizeof(vbt_cookie_t), &err);
+    if (!tx || err) {
+        /* Failed to alloc new tree_cookie */
         return -1;
     }
     tx = (vbt_cookie_t *)memset(tx, 0, sizeof(vbt_cookie_t));
@@ -397,7 +408,7 @@ static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *al
     if (target != NULL) {
         assert(target->largest_avail);
         _capbuddy_linked_list_remove(&alloc->utspace_capbuddy_memory_pool.cell[target->largest_avail - seL4_PageBits], target);
-        free(target);
+        allocman_mspace_free(alloc, target, sizeof(vbt_t));
     }
 
     if (tck->prev) {
@@ -412,7 +423,7 @@ static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *al
     tck->next = NULL;
     tck->prev = NULL;
 
-    free(tck);
+    allocman_mspace_free(alloc, tck, sizeof(vbt_cookie_t));
 
 #undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 }
@@ -439,8 +450,8 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
      *  tree's metadata? 'allocman_mspace_alloc' or 'malloc'->sel4muslibcsys? I think
      *  both of them are allocated from the '.bss' section during allocator's bootstrap.
      */
-    target_tree = (vbt_t *)malloc(sizeof(vbt_t));
-    if (!target_tree) {
+    target_tree = (vbt_t *)allocman_mspace_alloc(alloc, sizeof(vbt_t), &err);
+    if (!target_tree || err) {
         ZF_LOGE("Failed to allocate metadata to bookkeep vbt-tree information");
         return err;
     }
@@ -463,7 +474,7 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
     err = allocman_cspace_csa(alloc, &frame_cptr_sequence, frames_window_bits);
     if (err != seL4_NoError) {
         ZF_LOGE("Failed to allocate contiguous slots for frames of the requested memory region");
-        free(target_tree);
+        allocman_mspace_free(alloc, target_tree, sizeof(vbt_t));
         return err;
     }
 
@@ -488,7 +499,7 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
      * When every thing is ready, let's put the newly created virtual-bitmap-tree into
      * CapBuddy's memory pool, and of course, we need to initialize a metadata for it.
      */
-    err = vbt_instance_init(target_tree, paddr, frame_cptr_sequence, memory_region_bits);
+    err = vbt_instance_init(alloc, target_tree, paddr, frame_cptr_sequence, memory_region_bits);
     if (err != seL4_NoError) {
         ZF_LOGE("Failed to initialize a vbt instance");
         err = seL4_CNode_Revoke(ut->dest, ut->capPtr, ut->capDepth);
@@ -496,7 +507,7 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
             ZF_LOGE("Failed to revoke the original untyped object's cap to delete all frames' capabilities");
             return err;
         }
-        free(target_tree);
+        allocman_mspace_free(alloc, target_tree, sizeof(vbt_t));
         return err;
     }
 
@@ -554,8 +565,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t size_bits,
         paddr = paddr & 0xfffff000;
     }
 
-    err = _capbuddy_try_acquire_multiple_frames_at(
-                &alloc->utspace_capbuddy_memory_pool, paddr, size_bits, &frames_base_cptr);
+    err = _capbuddy_try_acquire_multiple_frames_at(alloc, paddr, size_bits, &frames_base_cptr);
 
     /* Failure occurred at our first approch */
     if (err != seL4_NoError) {
@@ -597,7 +607,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t size_bits,
         }
 
         /* Now, retry acquiring frames from memory pool */
-        err = _capbuddy_try_acquire_multiple_frames_at(&alloc->utspace_capbuddy_memory_pool, paddr, size_bits, &frames_base_cptr);
+        err = _capbuddy_try_acquire_multiple_frames_at(alloc, paddr, size_bits, &frames_base_cptr);
         if (err != seL4_NoError) {
             ZF_LOGE("Failed to acquire frames from the newly created virtual-bitmap-tree, abort from CapBuddy");
             err = seL4_CNode_Revoke(untyped_original.dest, untyped_original.capPtr, untyped_original.capDepth);

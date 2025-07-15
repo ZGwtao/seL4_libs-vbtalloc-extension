@@ -1,4 +1,5 @@
 
+#include <allocman/allocman.h>
 #include <allocman/vbt.h>
 #include <assert.h>
 #include <string.h>
@@ -15,12 +16,13 @@
 /***
  * Initialize a virtual-bitmap-tree.
  * 
+ * @param alloc : allocator for bootstrapping
  * @param data : target virtual-bitmap-tree with architectural supports
  * @param paddr : physical address of the requested memory region
  * @param fcs : frames cptr sequence (compressed in one 'cspacepath_t' variable)
  * @param origin_size_bits : default available memory region size of the tree, (should be 10+12)
  */
-int vbt_instance_init(vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t origin_size_bits)
+int vbt_instance_init(void *alloc, vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t origin_size_bits)
 {
     if (!data) {
         ZF_LOGE("vbt_data is NULL");
@@ -30,21 +32,27 @@ int vbt_instance_init(vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t ori
         ZF_LOGE("Double-initialized! arch_data is not NULL");
         return -1;
     }
+    if (!alloc) {
+        ZF_LOGE("no allocator is given for bootstrapping");
+        return -1;
+    }
+    allocman_t *a = (allocman_t *)alloc;
 
     data->base_physical_address = paddr;
     data->frame_sequence = fcs;
     data->largest_avail = origin_size_bits;
 
+    int err;
 #if CONFIG_WORD_SIZE == 32
-    data->arch_data = (arch32_single_level_bitmap_t *)malloc(sizeof(arch32_single_level_bitmap_t));
-    if (!data->arch_data) {
+    data->arch_data = (arch32_single_level_bitmap_t *)allocman_mspace_alloc(a, sizeof(arch32_single_level_bitmap_t), &err);
+    if (!data->arch_data || err) {
         ZF_LOGE("Failed to allocate memory for arch_data in vbt_t");
         return -1;
     }
     data->arch_data = (arch32_single_level_bitmap_t *)memset(data->arch_data, 0, sizeof(arch32_single_level_bitmap_t));
 #else
-    data->arch_data = (arch64_two_level_bitmap_t *)malloc(sizeof(arch64_two_level_bitmap_t));
-    if (!data->arch_data) {
+    data->arch_data = (arch64_two_level_bitmap_t *)allocman_mspace_alloc(a, sizeof(arch64_two_level_bitmap_t), &err);
+    if (!data->arch_data || err) {
         ZF_LOGE("Failed to allocate memory for arch_data in vbt_t");
         return -1;
     }
@@ -61,13 +69,14 @@ int vbt_instance_init(vbt_t *data, uintptr_t paddr, cspacepath_t fcs, size_t ori
  * Query a virtual-bitmap-tree and try to find an available memory region that can
  * serve the memory request, return 'cookie', architecture independent function
  * 
+ * @param alloc : allocator for bootstrapping
  * @param data : target virtual-bitmap-tree with architectural supports
  * @param real_size : size (number of frames + frame_size in bits) of the requested memory region
  * @param err : query result validity
  * 
  * @return cookie : result, architecture dependent, passed to 'Arch_vbt_' interfaces
  */
-void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err)
+void *vbt_query_avail_memory_region(void *alloc, vbt_t *data, size_t real_size, int *err)
 {
     if (!data) {
         *err = -1;
@@ -79,6 +88,12 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err)
         ZF_LOGE("vbt arch_data is NULL, initialize it first");
         return NULL;
     }
+    if (!alloc) {
+        *err = -1;
+        ZF_LOGE("no allocator is given for bootstrapping");
+        return NULL;
+    }
+    allocman_t *a = (allocman_t *)alloc;
     
     size_t fn = real_size - seL4_PageBits;
     /***
@@ -88,22 +103,23 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err)
      * know cookie type in here.
      */
     void *cell;
+
 #if CONFIG_WORD_SIZE == 32
     /***
      * It turns out that we can use frame offset in array as reference cookie
      * in single-level virtual-bitmap-tree structure. (it will be no more
      * than 2048 and larger than 0, 1->4M, 2~3->2M, 4~7->1M, 8~15->512k ...)
      */
-    cell = malloc(sizeof(address_index_t));
-    if (!cell) {
+    cell = allocman_mspace_alloc(a, sizeof(address_index_t), err);
+    if (!cell || *err) {
         *err = -1;
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
     }
     cell = memset(cell, 0, sizeof(address_index_t));
 #else
-    cell = malloc(sizeof(address_cell_t));
-    if (!cell) {
+    cell = allocman_mspace_alloc(a, sizeof(address_cell_t), err);
+    if (!cell || *err) {
         *err = -1;
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
@@ -114,7 +130,7 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err)
     data->arch_query_avail_mr(data->arch_data, fn, cell, err);
     if (*err != seL4_NoError) {
         /* No available memory region for the request */
-        vbt_query_try_cookie_release(cell);
+        vbt_query_try_cookie_release(alloc, cell);
         return NULL;
     }
     /* We are doing fine in here. */
@@ -126,6 +142,7 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err)
  * physical address that can serve the memory request, return 'cookie', architecture
  * independent function
  * 
+ * @param alloc : allocator for bootstrapping
  * @param data : target virtual-bitmap-tree with architectural supports
  * @param real_size : size (number of frames + frame_size in bits) of the requested memory region
  * @param paddr : physical address of the requested memory region
@@ -133,7 +150,7 @@ void *vbt_query_avail_memory_region(vbt_t *data, size_t real_size, int *err)
  * 
  * @return cookie : result, architecture dependent, passed to 'Arch_vbt_' interfaces
  */
-void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t paddr, int *err)
+void *vbt_query_avail_memory_region_at(void *alloc, vbt_t *data, size_t real_size, uintptr_t paddr, int *err)
 {
     if (!data) {
         *err = -1;
@@ -145,6 +162,12 @@ void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t 
         ZF_LOGE("vbt arch_data is NULL, initialize it first");
         return NULL;
     }
+    if (!alloc) {
+        *err = -1;
+        ZF_LOGE("no allocator is given for bootstrapping");
+        return NULL;
+    }
+    allocman_t *a = (allocman_t *)alloc;
     
     size_t fn = real_size - seL4_PageBits;
     /***
@@ -154,22 +177,23 @@ void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t 
      * know cookie type in here.
      */
     void *cell;
+
 #if CONFIG_WORD_SIZE == 32
     /***
      * It turns out that we can use frame offset in array as reference cookie
      * in single-level virtual-bitmap-tree structure. (it will be no more
      * than 2048 and larger than 0, 1->4M, 2~3->2M, 4~7->1M, 8~15->512k ...)
      */
-    cell = malloc(sizeof(address_index_t));
-    if (!cell) {
+    cell = allocman_mspace_alloc(a, sizeof(address_index_t), err);
+    if (!cell || *err) {
         *err = -1;
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
     }
     cell = memset(cell, 0, sizeof(address_index_t));
 #else
-    cell = malloc(sizeof(address_cell_t));
-    if (!cell) {
+    cell = allocman_mspace_alloc(a, sizeof(address_cell_t), err);
+    if (!cell || *err) {
         *err = -1;
         ZF_LOGE("Failed to allocate space for vbt query cookie");
         return NULL;
@@ -188,21 +212,29 @@ void *vbt_query_avail_memory_region_at(vbt_t *data, size_t real_size, uintptr_t 
     data->arch_query_avail_mr_at(data->arch_data, idx, fn, cell, err);
     if (*err != seL4_NoError) {
         /* No available memory region for the request */
-        vbt_query_try_cookie_release(cell);
+        vbt_query_try_cookie_release(alloc, cell);
         return NULL;
     }
     return cell;
 }
 
 /* Debug function ? */
-void vbt_query_try_cookie_release(void *cookie)
+void vbt_query_try_cookie_release(void *alloc, void *cookie)
 {
+    if (!alloc) {
+        ZF_LOGE("no allocator is given for bootstrapping");
+        /* internal allocator error */
+        assert(alloc);
+    }
+    allocman_t *a = (allocman_t *)alloc;
+
 #if CONFIG_WORD_SIZE == 32
     cookie = (address_index_t *)cookie;
+    allocman_mspace_free(a, cookie, sizeof(address_index_t));
 #else
     cookie = (address_cell_t *)cookie;
+    allocman_mspace_free(a, cookie, sizeof(address_cell_t));
 #endif
-    free(cookie); /* Maybe we can do it anywhere? */
 }
 
 /***
