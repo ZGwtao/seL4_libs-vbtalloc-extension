@@ -11,6 +11,74 @@
 
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS /* CapBuddy support */
 
+static inline int cookie_cmp(node_vbtree *x, node_vbtree *y)
+{
+    if (x->frames_cptr_base == y->frames_cptr_base) {
+        return 0;
+    }
+    if (x->frames_cptr_base > y->frames_cptr_base) {
+        if (x->frames_cptr_base < y->frames_cptr_base + 1024) {
+            return 0;
+        }
+        return 1;
+    }
+    return -1;
+}
+
+SGLIB_DEFINE_RBTREE_PROTOTYPES(node_vbtree, left, right, color_field, cookie_cmp);
+SGLIB_DEFINE_RBTREE_FUNCTIONS(node_vbtree, left, right, color_field, cookie_cmp);
+
+static node_vbtree *find_vbt_tree_by_cptr(node_vbtree *cookie_rb_tree, seL4_CPtr fcptr)
+{
+    node_vbtree *result_node;
+    if (!cookie_rb_tree) {
+        ZF_LOGE("Failed to find target vbt tree from cookie: CapBuddy Cookie List Invalid");
+        return NULL;
+    }
+    node_vbtree search_node;
+    search_node.frames_cptr_base = fcptr;
+    
+    /* 0 means match, search with base cptr */
+    result_node = sglib_node_vbtree_find_member(cookie_rb_tree, &search_node);
+    return result_node;
+}
+
+/* FIXME: no delete node in vbt cookie rbtree? */
+static void remove_vbt_tree_node(node_vbtree *cookie_rb_tree, node_vbtree *todel_node)
+{
+    node_vbtree *result_node;
+    if (!cookie_rb_tree) {
+        ZF_LOGE("Failed to find target vbt tree from cookie: CapBuddy Cookie List Invalid");
+        return;
+    }
+    result_node = sglib_node_vbtree_find_member(cookie_rb_tree, todel_node);
+    if (!result_node) {
+        /* No node found */
+        ZF_LOGE("Failed to find target vbt tree to delete");
+        return;
+    }
+    sglib_node_vbtree_delete(&cookie_rb_tree, result_node);
+}
+
+static int add_vbt_tree_node(node_vbtree **pcookie_rb_tree, node_vbtree *new_node)
+{
+    node_vbtree *result_node;
+    if (!new_node) {
+        ZF_LOGE("Failed to add vbt tree to cookie rbtree: Initialise the New Node First!");
+        return -1;
+    }
+    
+    result_node = sglib_node_vbtree_find_member(*pcookie_rb_tree, new_node);
+    if (result_node) {
+        /* found, no need to add */
+        ZF_LOGE("Failed to add new vbtree node: Given node already exists");
+        return -1;
+    }
+
+    sglib_node_vbtree_add(pcookie_rb_tree, new_node);
+    return 0;
+}
+
 static void _capbuddy_linked_list_insert(vbt_t *tree_linked_list[], vbt_t *target_tree)
 {
     /* Safety check */
@@ -158,14 +226,10 @@ static int _capbuddy_try_acquire_multiple_frames_at(allocman_t *alloc, uintptr_t
         /***
          * sorted by cptr, so give pool->cell up and search it with paddr in cookie list
          */
-        vbt_cookie_t *tck = pool->cookie_linked_list;
-        while (tck) {
-            if (TREE_COOKIE_DETERMINE_PADDR(tck, paddr)) {
-                break;
-            }
-            tck = tck->next;
-        }
-        
+        node_vbtree *tck = pool->cookie_rb_tree;
+
+        // FIXME
+        while (1);
         /* If already allocated */
         if (tck) {
             target_tree = tck->target_tree;
@@ -323,61 +387,24 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
     (c1->frames_cptr_base cmp c2->frames_cptr_base)
 
     int err;
-    vbt_cookie_t *tx;
+    node_vbtree *tx;
     /* Allocate space for new cookie's metadata */
-    tx = (vbt_cookie_t *)allocman_mspace_alloc(alloc, sizeof(vbt_cookie_t), &err);
+    tx = (node_vbtree *)allocman_mspace_alloc(alloc, sizeof(node_vbtree), &err);
     if (!tx || err) {
         /* Failed to alloc new tree_cookie */
         return -1;
     }
-    tx = (vbt_cookie_t *)memset(tx, 0, sizeof(vbt_cookie_t));
+    tx = (node_vbtree *)memset(tx, 0, sizeof(node_vbtree));
 
     tx->paddr_head = tree->base_physical_address;
     tx->paddr_tail = tree->base_physical_address + (1U << 22); /* 12 page_size + 10 page_num */
     tx->frames_cptr_base = tree->frame_sequence.capPtr;
     tx->target_tree = tree;
 
-    vbt_cookie_t *head;
-    /* First virtual-bitmap-tree in capbuddy's memory pool */
-    head = alloc->utspace_capbuddy_memory_pool.cookie_linked_list;
-    if (!head) {
-        alloc->utspace_capbuddy_memory_pool.cookie_linked_list = tx;
-        return seL4_NoError;
-    }
-
-    /* Retrieve the proper insert point */
-    vbt_cookie_t *curr = head;
-    while (curr) {
-        if (!curr->next) {
-            break;
-        }
-        if (TREE_COOKIE_COMPARE_CPTR(curr->next, tx, >=)) {
-            break;
-        }
-        curr = curr->next;
-    }
-
-    /* If at the end of the linked-list */
-    if (TREE_COOKIE_COMPARE_CPTR(curr, tx, <)) {
-        tx->prev = curr;
-        if (curr->next) {
-            tx->next = curr->next;
-            curr->next->prev = tx;
-        }
-        curr->next = tx;
-        return seL4_NoError;
-    }
-
-    assert(TREE_COOKIE_COMPARE_CPTR(curr, tx, >));
-    tx->next = curr;
-    if (curr->prev) {
-        tx->prev = curr->prev;
-        curr->prev->next = tx;
-    }
-    curr->prev = tx;
-    /* If it happens to be the head of the linked-list */
-    if (TREE_COOKIE_COMPARE_CPTR(head, tx, >)) {
-        alloc->utspace_capbuddy_memory_pool.cookie_linked_list = tx;
+    err = add_vbt_tree_node(&alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, tx);
+    if (err) {
+        ZF_LOGE("Failed to add new vbt tree to the cookie rbtree");
+        return err;
     }
     return seL4_NoError;
 #undef TREE_COOKIE_COMPARE_CPTR
@@ -389,16 +416,14 @@ static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *al
 #define TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(a,b) \
                                 (a >= b && a < b + 1024)
     /* Safety check */
-    assert(alloc->utspace_capbuddy_memory_pool.cookie_linked_list);
+    assert(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree);
 
-    vbt_cookie_t *tck;
+    node_vbtree *tck;
     /* Try retrieving target virtual-bitmap-tree */
-    tck = alloc->utspace_capbuddy_memory_pool.cookie_linked_list;
-    while (tck) {
-        if (TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(fbcptr, tck->frames_cptr_base)) {
-            break;
-        }
-        tck = tck->next;
+    tck = find_vbt_tree_by_cptr(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, fbcptr);
+    if (!tck) {
+        /* internal capbuddy allocator error */
+        assert(0);
     }
     /* Safety check */
     assert(TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(fbcptr, tck->frames_cptr_base));
@@ -411,19 +436,8 @@ static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *al
         allocman_mspace_free(alloc, target, sizeof(vbt_t));
     }
 
-    if (tck->prev) {
-        tck->prev->next = tck->next;
-    }
-    if (tck->next) {
-        tck->next->prev = tck->prev;
-    }
-    if (tck == alloc->utspace_capbuddy_memory_pool.cookie_linked_list) {
-        alloc->utspace_capbuddy_memory_pool.cookie_linked_list = tck->next;
-    }
-    tck->next = NULL;
-    tck->prev = NULL;
-
-    allocman_mspace_free(alloc, tck, sizeof(vbt_cookie_t));
+    remove_vbt_tree_node(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, tck);
+    allocman_mspace_free(alloc, tck, sizeof(node_vbtree));
 
 #undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 }
@@ -635,17 +649,11 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
 #define TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(a,b) \
                                 (a >= b && a < b + 1024)
     /* Safety check */
-    assert(alloc->utspace_capbuddy_memory_pool.cookie_linked_list);
+    assert(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree);
 
-    vbt_cookie_t *tck;
+    node_vbtree *tck;
     /* Try retrieving target virtual-bitmap-tree */
-    tck = alloc->utspace_capbuddy_memory_pool.cookie_linked_list;
-    while (tck) {
-        if (TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(cptr, tck->frames_cptr_base)) {
-            break;
-        }
-        tck = tck->next;
-    }
+    tck = find_vbt_tree_by_cptr(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, cptr);
     /* Safety check */
     assert(TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(cptr, tck->frames_cptr_base));
 
