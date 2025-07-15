@@ -163,25 +163,31 @@ static inline void vka_free_arch_object(vka_t *vka, vka_object_t *object)
 
 static inline void vka_free_object(vka_t *vka, vka_object_t *object)
 {
-    if (object->type == kobject_get_type(KOBJECT_FRAME, 12)) {
-        if (object->size_bits > 12) {
-            int frame_num = BIT(object->size_bits - 12);
-            if (vka_cspace_is_from_pool(vka, object->cptr)) {
-                seL4_CPtr frame_start = object->cptr;
-                for (int i = 0; i < frame_num; ++i) {
-                    assert(vka_cspace_is_from_pool(vka, frame_start + i));
-                    vka_utspace_try_free_from_pool(vka, frame_start + i);
-                }
-            } else {
-                assert(0);
-            }
-        } else {
-            vka_free_arch_object(vka, object);
-        }
+    if (object->type != kobject_get_type(KOBJECT_FRAME, seL4_PageBits)) {
+        vka_free_capability(vka, object->cptr);
+        vka_utspace_free(vka, object->type, object->size_bits, object->ut);
         return;
     }
-    vka_free_capability(vka, object->cptr);
-    vka_utspace_free(vka, object->type, object->size_bits, object->ut);
+    if (object->size_bits <= seL4_PageBits) {
+        vka_free_arch_object(vka, object);
+        return;
+    }
+
+    int fnum;
+    seL4_CPtr fcptr;
+
+    /* fcptr: capability pointer of the starting frame */    
+    fcptr = object->cptr;
+    /* fnum: total number of frame in a row */
+    fnum = BIT(object->size_bits - seL4_PageBits);
+
+    for (int i = 0; i < fnum; ++i) {
+#ifdef CONFIG_DEBUG
+        /* we just assume no external allocated cptrs */
+        assert(vka_cspace_is_from_pool(vka, fcptr + i));
+#endif
+        vka_utspace_try_free_from_pool(vka, fcptr + i);
+    }
 }
 
 #else
