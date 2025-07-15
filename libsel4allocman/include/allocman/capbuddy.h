@@ -8,10 +8,10 @@
 #include <allocman/vbt.h>
 #include <utils/sglib.h>
 
-typedef struct cookie_tree {
+typedef struct node_vbtree {
     /***
      * @param: 'frames_cptr_base' can be used to sort all virtual-bitmap-trees in
-     *          the tree_cookie_linked_list, this is because it's not always easy
+     *          the cookie red-black tree >>, this is because it's not always easy
      *          to retrieve deep down to the vbt_t as they can be different under
      *          different machine words working environments
      */
@@ -31,23 +31,9 @@ typedef struct cookie_tree {
      */
     
     char color_field;
-    struct cookie_tree *left;
-    struct cookie_tree *right;
-} cookie_tree;
-
-static inline int cookie_cmp(cookie_tree *x, cookie_tree *y)
-{
-    if (x->frames_cptr_base < y->frames_cptr_base) {
-        return -1;
-    }
-    if (x->frames_cptr_base == y->frames_cptr_base) {
-        return 0;
-    }
-    return 1;
-}
-
-SGLIB_DEFINE_RBTREE_PROTOTYPES(cookie_tree, left, right, color_field, cookie_cmp);
-SGLIB_DEFINE_RBTREE_FUNCTIONS(cookie_tree, left, right, color_field, cookie_cmp);
+    struct node_vbtree *left;
+    struct node_vbtree *right;
+} node_vbtree;
 
 typedef struct capbuddy_memory_pool {
 
@@ -56,6 +42,5 @@ typedef struct capbuddy_memory_pool {
     vbt_t *useup;
 
     /* try replace O(n) list with O(logn) for searching */
-    cookie_tree *cooke_rb_tree;
-
+    node_vbtree *cookie_rb_tree;
 } capbuddy_memory_pool_t;
