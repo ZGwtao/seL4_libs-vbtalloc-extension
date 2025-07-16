@@ -192,7 +192,8 @@ static size_t __two_level_bitmap_update_largest(void *data)
      * If this is a useup tree, just return zero since there are no
      * available memory region in it.
      */
-    if (mr_i1 == 64) {
+     // For some reason, not work for x86_64?
+    if (!target->l1.map) {
         return 0;
     }
     /***
