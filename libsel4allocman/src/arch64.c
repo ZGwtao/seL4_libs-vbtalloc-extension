@@ -130,11 +130,12 @@ static void __two_level_bitmap_try_query_avail_memory_region_at(void *data, size
 
 static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t fn, void *res, int *err)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety check */
     assert(data);
     assert(res);
     assert(err);
-
+#endif
     address_cell_t *cell = (address_cell_t *)res;
     arch64_two_level_bitmap_t *target = (arch64_two_level_bitmap_t *)data;
 
@@ -176,9 +177,10 @@ static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t 
 
 static size_t __two_level_bitmap_update_largest(void *data)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety check */
     assert(data);
-
+#endif
     arch64_two_level_bitmap_t *target = (arch64_two_level_bitmap_t *)data;
 
     arch64_bitmap_t *l1 = &target->l1;
@@ -201,7 +203,9 @@ static size_t __two_level_bitmap_update_largest(void *data)
     if (mr_i1 < 32) {
         /* 18 ~ 22 */
         rv = ((BITMAP_DEPTH) - BITMAP_GET_LEVEL(mr_i1)) + ((BITMAP_LEVEL) + (seL4_PageBits));
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
         assert(rv >= 18); /* pow(2,18) = 256k */
+#endif
         return rv;
     }
 
@@ -235,15 +239,18 @@ static size_t __two_level_bitmap_update_largest(void *data)
     }
     /* 12 ~ 17 */
     rv = ((BITMAP_DEPTH) - BITMAP_GET_LEVEL(ux)) + (seL4_PageBits);
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     assert(rv >= 12);
+#endif
     return rv;
 }
 
 static void __two_level_bitmap_update_memory_region_acquired(void *data, const void *cookie)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     assert(data);
     assert(cookie);
-
+#endif
     address_cell_t *path = (address_cell_t *)cookie;
     arch64_two_level_bitmap_t *target = (arch64_two_level_bitmap_t*)data;
 
@@ -295,9 +302,10 @@ static void __two_level_bitmap_update_memory_region_acquired(void *data, const v
 
 static void __two_level_bitmap_update_memory_region_released(void *data, const void *cookie)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     assert(data);
     assert(cookie);
-
+#endif
     address_cell_t *path = (address_cell_t *)cookie;
     arch64_two_level_bitmap_t *target = (arch64_two_level_bitmap_t*)data;
 
@@ -373,9 +381,10 @@ static void __two_level_bitmap_update_memory_region_released(void *data, const v
 
 static void __two_level_bitmap_init(void *target_tree)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety check */
     assert(target_tree);
-
+#endif
     arch64_two_level_bitmap_t *target = (arch64_two_level_bitmap_t *)target_tree;
     /***
      * Initialize it with 1024 frames, so the original entry
@@ -415,7 +424,9 @@ static void __two_level_bitmap_init(void *target_tree)
 
 static seL4_CPtr __two_level_bitmap_frame_offset_operator(const void *cookie)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     assert(cookie);
+#endif
     address_cell_t *p = (address_cell_t *)cookie;
 
     int size, base, ofs;
@@ -438,7 +449,9 @@ static seL4_CPtr __two_level_bitmap_frame_offset_operator(const void *cookie)
 
 void arch64_vbt_make_interface(void *data)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     assert(data); /* Safety check */
+#endif
     vbt_t *target = (vbt_t *)data;
 /* target->arch_data interfaces */
     target->arch_data->arch_init = __two_level_bitmap_init;

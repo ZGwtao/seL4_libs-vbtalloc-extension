@@ -81,9 +81,10 @@ static int add_vbt_tree_node(node_vbtree **pcookie_rb_tree, node_vbtree *new_nod
 
 static void _capbuddy_linked_list_insert(vbt_t *tree_linked_list[], vbt_t *target_tree)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety check */
     assert(target_tree);
-
+#endif
     /* Initialize list firstly */
     if ((*tree_linked_list) == NULL) {
         /* Remove it from the original list */
@@ -131,7 +132,9 @@ static void _capbuddy_linked_list_insert(vbt_t *tree_linked_list[], vbt_t *targe
     /***
      * curr_prev <- target_tree <- curr, in that order
      */
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     assert(TREE_NODE_COMPARE(curr, target_tree, >));
+#endif
     target_tree->next = curr;
     if (curr->prev) {
         target_tree->prev = curr->prev;
@@ -147,10 +150,11 @@ static void _capbuddy_linked_list_insert(vbt_t *tree_linked_list[], vbt_t *targe
 
 static void _capbuddy_linked_list_remove(vbt_t *tree_linked_list[], vbt_t *target_tree)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety check */
     assert(target_tree);
     assert(tree_linked_list);
-
+#endif
     vbt_t *head = *tree_linked_list;
     vbt_t *curr = head;
 
@@ -161,8 +165,10 @@ static void _capbuddy_linked_list_remove(vbt_t *tree_linked_list[], vbt_t *targe
         }
         curr = curr->next;
     }
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Check if no error occurs */
     assert(target_tree == curr);
+#endif
     /* Remove it from the list */
     if (curr->prev != NULL) {
         curr->prev->next = curr->next;
@@ -195,9 +201,10 @@ static int _capbuddy_try_acquire_multiple_frames_at(allocman_t *alloc, uintptr_t
 #define TREE_COOKIE_DETERMINE_PADDR(tptr, paddr) \
     ((tptr->paddr_head <= paddr) && (tptr->paddr_tail > paddr))
 
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Make sure the arg 'real_size' of the requested memory region is legal */
     assert(real_size >= seL4_PageBits);
-
+#endif
     /***
      * Try getting the first available virtual-bitmap-tree.
      * The tree must have no less than one piece of available memory region
@@ -389,9 +396,10 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
 
 static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *alloc, seL4_CPtr fbcptr)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety check */
     assert(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree);
-
+#endif
     node_vbtree *tck;
     /* Try retrieving target virtual-bitmap-tree */
     tck = find_vbt_tree_by_cptr(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, fbcptr);
@@ -423,9 +431,9 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
     size_t frames_window_bits = fn; /* support 1024 now only */
     size_t frames_window_size = BIT(frames_window_bits);
     size_t memory_region_bits = frames_window_bits + seL4_PageBits;
-
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     assert(frames_window_bits == 10);
-
+#endif
     vbt_t *target_tree;
     /***
      * FIXME:
@@ -617,15 +625,17 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
 #undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 #define TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(a,b) \
                                 (a >= b && a < b + 1024)
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety check */
     assert(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree);
-
+#endif
     node_vbtree *tck;
     /* Try retrieving target virtual-bitmap-tree */
     tck = find_vbt_tree_by_cptr(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, cptr);
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety check */
     assert(TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(cptr, tck->frames_cptr_base));
-
+#endif
     vbt_t *target = tck->target_tree;
     /***
      * Save its current largest available memory region size,
@@ -647,10 +657,11 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
          */
         return;
     }
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety checks */
     assert(largest_avail < target->largest_avail);
     assert(largest_avail <= 10 + seL4_PageBits);
-
+#endif
     /* If the released memory region was from a normal cell */
     if (largest_avail) {
         /* Remove it from its original (normal cell) list */
@@ -663,7 +674,9 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
 
 int allocman_cspace_target_object_allocated_from_pool(allocman_t *alloc, seL4_CPtr cptr)
 {
+#ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     assert(alloc->have_cspace);
+#endif
     int res;
     /* wrapper function for cspace_target_object_allocated_from_pool */
     res = alloc->cspace.pool(alloc, alloc->cspace.cspace, cptr);
