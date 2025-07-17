@@ -11,26 +11,50 @@ static inline int
     return 1 << (l1 - l2);
 }
 
+#if 1
 static size_t __bitmap_update_propagate_descendants(int x)
 {
     size_t r = 0;
 
-    int l = BITMAP_GET_LEVEL(x);
+    int l = 64 - __builtin_clzl(x);
     /***
      * =l denotes current level
      * <l denotes ancestor level
      * >l denotes descendant level
      */
-    for (int i = l + 1; i <= BITMAP_DEPTH; ++i)
-    {
-        for (int j1 = 0,
-                 j2 = 1 << (i - l); j1 < j2; ++j1)
-        {
-            r += VBT_INDEX_BIT(x * j2 + j1);
+    for (int i = l + 1; i <= 6; ++i) {
+        for (int j = 0; j < 1 << (i - l); ++j) {
+            r |= (1ULL << (63 - ((x << (i - l)) + j)));
         }
     }
     return r;
 }
+#else
+static inline size_t __bitmap_update_propagate_descendants(int x)
+{
+    size_t r = 0;
+
+    if (x == 0) return r;  // avoid undefined behavior in __builtin_clz
+
+    // Compute the level of x based on leading zero count
+    int l = 64 - __builtin_clzl((unsigned long)x);
+
+    for (int i = l + 1; i <= 6; ++i)
+    {
+        int shift = i - l;
+        int j2 = 1 << shift;
+        int base = x << shift;  // equivalent to x * j2, faster
+
+        for (int j1 = 0; j1 < j2; ++j1)
+        {
+            int bit_index = 63 - (base + j1);  // 63 = 64 - 1
+            r |= 1ULL << bit_index;
+        }
+    }
+
+    return r;
+}
+#endif
 
 static void __bitmap_update_memory_region_released(void *data, int mr_idx)
 {
