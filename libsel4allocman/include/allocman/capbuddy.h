@@ -8,26 +8,16 @@
 #include <allocman/vbt.h>
 #include <utils/sglib.h>
 
-typedef struct node_vbtree {
-    /***
-     * @param: 'frames_cptr_base' can be used to sort all virtual-bitmap-trees in
-     *          the cookie red-black tree >>, this is because it's not always easy
-     *          to retrieve deep down to the vbt_t as they can be different under
-     *          different machine words working environments
-     */
-    seL4_CPtr frames_cptr_base;
-    /***
-     * pointer to the cookie of the target_tree's metadata
-     */
-    vbt_t *target_tree;
-    /***
-     * bi-directions linked-list of tree_cookies
-     */
-    
-    char color_field;
-    struct node_vbtree *left;
-    struct node_vbtree *right;
-} node_vbtree;
+#define DEFINE_NODE_VBTREE(NAME,TYPE,ATTR) \
+    typedef struct NAME {   \
+        TYPE ATTR;          \
+        vbt_t *target_tree; \
+        char color_field;   \
+        struct NAME *left;  \
+        struct NAME *right; \
+    } NAME;
+
+DEFINE_NODE_VBTREE(node_vbtree, seL4_CPtr, frames_cptr_base)
 
 typedef struct capbuddy_memory_pool {
     vbt_t *cell[11];
