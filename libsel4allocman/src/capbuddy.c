@@ -415,7 +415,7 @@ static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *al
         allocman_mspace_free(alloc, target, sizeof(vbt_t));
     }
 
-    sglib_node_vbtree_delete(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, tck);
+    sglib_node_vbtree_delete(&alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, tck);
     allocman_mspace_free(alloc, tck, sizeof(node_vbtree));
 }
 
