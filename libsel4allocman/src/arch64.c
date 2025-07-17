@@ -199,7 +199,8 @@ static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t 
             cell->i1 = avail_index;
             cell->i2 = avail;
         } else {
-            map_l1 &= ~(1ULL << FFSL(map_l1));
+            // FIXME
+            map_l1 &= ~(1ULL << (FFSL(map_l1) - 1));
         }
     }
 }
@@ -216,7 +217,7 @@ static size_t __two_level_bitmap_update_largest(void *data)
 
     size_t rv;  /* return value */
 
-    int mr_i1 = CLZL(l1->map);
+    int avail_index = CLZL(l1->map);
     /***
      * If this is a useup tree, just return zero since there are no
      * available memory region in it.
@@ -230,9 +231,9 @@ static size_t __two_level_bitmap_update_largest(void *data)
      * So we should prepare the number of frames in bits as well as
      * the frame size in bits and add them up to return
      */
-    if (mr_i1 < 32) {
+    if (avail_index < 32) {
         /* 18 ~ 22 */
-        rv = ((BITMAP_DEPTH) - BITMAP_GET_LEVEL(mr_i1)) + ((BITMAP_LEVEL) + (seL4_PageBits));
+        rv = ((BITMAP_DEPTH) - BITMAP_GET_LEVEL(avail_index)) + ((BITMAP_LEVEL) + (seL4_PageBits));
 #ifdef CONFIG_LIB_ALLOCMAN_DEBUG
         assert(rv >= 18); /* pow(2,18) = 256k */
 #endif
@@ -241,13 +242,23 @@ static size_t __two_level_bitmap_update_largest(void *data)
 
     int tx;
     int ux = 64; /* leading zeros number will at most be 63 because last 4k is 63 */
-    int mr_i1_top = 64; /* index of the last bit of l2 bitmap in l1 is 63 */
+    //int mr_i1_top = 64; /* index of the last bit of l2 bitmap in l1 is 63 */
+    //for (int i = mr_i1; i < mr_i1_top; ++i) {
+    size_t map_l1 = l1->map;
 
-    for (int i = mr_i1; i < mr_i1_top; ++i) {
+    while (true) {
+        avail_index = 64 - FFSL(map_l1);
+        //printf("[%u-%016lx]", avail_index, map_l1);
+        if (avail_index < 32 || avail_index == 64) break;
         /***
          * Query every l2 bitmap to see what's the largest available
          * memory region size among them all (at most = 128k)
          */
+        tx = CLZL(MASK(63) & target->l2[BITMAP_SUB_OFFSET(avail_index)].map);
+        if (tx < ux) ux = tx;
+        if (ux == 1) break;
+        map_l1 &= ~(1ULL << (FFSL(map_l1) - 1));
+        #if 0
         if (((l1->map >> (BITMAP_SIZE - 1 - i)) & 1)) {
             /***
              * If target l2 bitmap is not useup, try retrieving the
@@ -266,6 +277,7 @@ static size_t __two_level_bitmap_update_largest(void *data)
                 break;
             }
         }
+        #endif
     }
     /* 12 ~ 17 */
     rv = ((BITMAP_DEPTH) - BITMAP_GET_LEVEL(ux)) + (seL4_PageBits);
