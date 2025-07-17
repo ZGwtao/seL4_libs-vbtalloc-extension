@@ -394,15 +394,21 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
 #undef TREE_COOKIE_COMPARE_CPTR
 }
 
-static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *alloc, seL4_CPtr fbcptr)
+static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *alloc, node_vbtree **pcookie_rb_tree, seL4_CPtr fbcptr)
 {
+    if (pcookie_rb_tree) {
+        ZF_LOGE("Invalid rbtree given for vbt cookies");
+        return;
+    }
+    node_vbtree *cookie_rb_tree = *pcookie_rb_tree;
 #ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Safety check */
-    assert(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree);
+    // assert(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree);
+    assert(cookie_rb_tree);
 #endif
     node_vbtree *tck;
     /* Try retrieving target virtual-bitmap-tree */
-    tck = find_vbt_tree_by_cptr(alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, fbcptr);
+    tck = find_vbt_tree_by_cptr(cookie_rb_tree, fbcptr);
     if (!tck) {
         /* internal capbuddy allocator error */
         assert(0);
@@ -415,7 +421,7 @@ static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *al
         allocman_mspace_free(alloc, target, sizeof(vbt_t));
     }
 
-    sglib_node_vbtree_delete(&alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, tck);
+    sglib_node_vbtree_delete(pcookie_rb_tree, tck);
     allocman_mspace_free(alloc, tck, sizeof(node_vbtree));
 }
 
@@ -519,6 +525,7 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
      * Rather than the virtual-bitmap-tree itself, we need to store its metdata for allocman
      * (the allocator) to do bookkeeping jobs and managing all available & unavailable trees.
      */
+    //err = _allocman_utspace_append_virtual_bitmap_tree_cookie(alloc, &alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, target_tree);
     err = _allocman_utspace_append_virtual_bitmap_tree_cookie(alloc, target_tree);
     if (err != seL4_NoError) {
         ZF_LOGE("Failed to append newly created virtual-bitmap-tree to allocator");
@@ -606,7 +613,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t size_bits,
                 ZF_LOGE("Failed to revoke the original untyped object's cap to delete all frames' capabilities");
                 return err;
             }
-            _allocman_utspace_subtract_virtual_bitmap_tree_cookie(alloc, frames_base_cptr);
+            _allocman_utspace_subtract_virtual_bitmap_tree_cookie(alloc, &alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, frames_base_cptr);
             allocman_utspace_free(alloc, untyped_original_cookie, 10 + seL4_PageBits);
             allocman_cspace_free(alloc, &untyped_original);
             return err;
