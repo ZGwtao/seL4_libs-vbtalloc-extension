@@ -46,16 +46,14 @@ static void __bitmap_update_memory_region_released(void *data, int mr_idx)
     }
 
     int idx = mr_idx >> 1;
-    size_t dtc = VBT_INDEX_BIT(idx);
     while(idx) {
-        bitmap->map |= dtc;
+        bitmap->map |= (1ULL << (BITMAP_SIZE - 1 - idx));
         buddy = idx % 2 ? idx - 1 : idx + 1;
-        if (!VBT_AND(bitmap->map, VBT_INDEX_BIT(buddy))) {
+        if (!((bitmap->map >> (BITMAP_SIZE - 1 - buddy)) & 1)) {
             return;
         }
         idx >>= 1;
         if (idx == 0) break;
-        dtc = VBT_INDEX_BIT(idx);
     }
 }
 
@@ -66,20 +64,18 @@ static void __bitmap_update_memory_region_acquired(void *data, int mr_idx)
     arch64_bitmap_t *bitmap = (arch64_bitmap_t*)data;
     /* recursively update ancestors' status */
     int idx = mr_idx >> 1;
-    size_t dtc = VBT_INDEX_BIT(idx);
 /* ancestors */
     while(idx) {
-        if (!VBT_AND(dtc, bitmap->map)) {
+        if (!((bitmap->map >> (BITMAP_SIZE - 1 - idx)) & 1)) {
             break;
         }
-        bitmap->map -= dtc;
+        bitmap->map &= ~(1ULL << (BITMAP_SIZE - 1 - idx));
         idx >>= 1;
-        dtc = VBT_INDEX_BIT(idx);
     }
 /* descendants */
     bitmap->map &= ~__bitmap_update_propagate_descendants(mr_idx);
 /* value itself */
-    bitmap->map &= ~(VBT_INDEX_BIT(mr_idx));
+    bitmap->map &= ~(1ULL << (BITMAP_SIZE - 1 - mr_idx));
 }
 
 static void __two_level_bitmap_try_query_avail_memory_region_at(void *data, size_t sidx, /* frame index */
@@ -107,7 +103,7 @@ static void __two_level_bitmap_try_query_avail_memory_region_at(void *data, size
         return;
     }
 
-    if (!VBT_AND(l1->map, VBT_INDEX_BIT(32 + (sidx / MAPSIZE_FRAME)))) {
+    if (!((l1->map >> (BITMAP_SIZE - 1 - (32 + (sidx / MAPSIZE_FRAME)))) & 1)) {
         /* Target frame is currently unavailable */
         return;
     }
@@ -115,7 +111,7 @@ static void __two_level_bitmap_try_query_avail_memory_region_at(void *data, size
     /* Target level-2 bitmap to be queired */
     l2 = &target->l2[sidx / MAPSIZE_FRAME];
 
-    if (!VBT_AND(l2->map, VBT_INDEX_BIT(32 + (sidx % MAPSIZE_FRAME)))) {
+    if (!((l2->map >> (BITMAP_SIZE - 1 - (32 + (sidx % MAPSIZE_FRAME)))) & 1)) {
         /* Target frame is currently unavailable */
         return;
     }
@@ -219,7 +215,7 @@ static size_t __two_level_bitmap_update_largest(void *data)
          * Query every l2 bitmap to see what's the largest available
          * memory region size among them all (at most = 128k)
          */
-        if (VBT_AND(l1->map, VBT_INDEX_BIT(i))) {
+        if (((l1->map >> (BITMAP_SIZE - 1 - i)) & 1)) {
             /***
              * If target l2 bitmap is not useup, try retrieving the
              * largest available memory region size from this l2 bitmap
@@ -274,7 +270,7 @@ static void __two_level_bitmap_update_memory_region_acquired(void *data, const v
         int sti = BITMAP_SUB_OFFSET(window * path->i1);
         
         for (int i = sti; i < sti + window; ++i) {
-            if (!VBT_AND(l1->map, VBT_INDEX_BIT(i))) {
+            if (!((l1->map >> (BITMAP_SIZE - 1 - i)) & 1)) {
                 target->l2[i].map = 0ul;
             }
         }
@@ -288,12 +284,11 @@ static void __two_level_bitmap_update_memory_region_acquired(void *data, const v
     int idx = path->i1;
     size_t dtc = VBT_INDEX_BIT(idx);
     while(idx) {
-        if (!VBT_AND(dtc, l1->map)) {
+        if (!((l1->map >> (BITMAP_SIZE - 1 - idx)) & 1)) {
             break;
         }
-        l1->map -= dtc;
+        l1->map &= ~(1ULL << (BITMAP_SIZE - 1 - idx));
         idx >>= 1;
-        dtc = VBT_INDEX_BIT(idx);
     }
     if (l2->map != 0) {
         l1->map += (VBT_INDEX_BIT(path->i1));
@@ -324,7 +319,7 @@ static void __two_level_bitmap_update_memory_region_released(void *data, const v
         int sti = BITMAP_SUB_OFFSET(window * path->i1);
         
         for (int i = sti; i < sti + window; ++i) {
-            if (!VBT_AND(l1->map, VBT_INDEX_BIT(i))) {
+            if (!((l1->map >> (BITMAP_SIZE - 1 - i)) & 1)) {
                 target->l2[i].map = MASK(63) & (uint64_t)-1;
             }
         }
@@ -366,16 +361,14 @@ static void __two_level_bitmap_update_memory_region_released(void *data, const v
 
     int buddy;
     int idx = path->i1 >> 1;
-    size_t dtc = VBT_INDEX_BIT(idx);
     while(idx) {
-        l1->map |= dtc;
+        l1->map |= (1ULL << (BITMAP_SIZE - 1 - idx));
         buddy = idx % 2 ? idx - 1 : idx + 1;
-        if (!VBT_AND(l1->map, VBT_INDEX_BIT(buddy))) {
+        if (!((l1->map >> (BITMAP_SIZE - 1 - buddy)) & 1)) {
             break;
         }
         idx >>= 1;
         if (idx == 0) break;
-        dtc = VBT_INDEX_BIT(idx);
     }           
 #undef CHECK_REQUEST_L1_BASED
 }
