@@ -226,21 +226,38 @@ static int _capbuddy_try_acquire_multiple_frames_at(allocman_t *alloc, uintptr_t
         /* align */
         idx -= 1;
     } else {
-        /***
-         * sorted by cptr, so give pool->cell up and search it with paddr in cookie list
-         */
-        node_vbtree *tck = pool->cookie_rb_tree;
+        vbt_t *tck;
+        size_t cookie_index;
+        int found;
 
-        // FIXME
-        while (1);
-        /* If already allocated */
+        /* get possible range */
+        cookie_index = (paddr >> 22);
+        tck = pool->cookie_map[cookie_index];
+        found = 0;
+
         if (tck) {
-            target_tree = tck->target_tree;
-            /***
-             * FIXME:
-             *  idx can be deprecated here. Use 'largest_avail'
-             *  instead and it will be fine.
-             */
+            if (paddr >= tck->base_physical_address && paddr < tck->base_physical_address + 0x400000) {
+                found = 1;
+            }
+        }
+        if (cookie_index != 0 && !found) {
+            tck = pool->cookie_map[cookie_index - 1];
+            if (tck) {
+                if (paddr >= tck->base_physical_address && paddr < tck->base_physical_address + 0x400000) {
+                    found = 1;
+                }
+            }
+        }
+        if (cookie_index != MAX_COOKIE_NUM && !found) {
+            tck = pool->cookie_map[cookie_index + 1];
+            if (tck) {
+                if (paddr >= tck->base_physical_address && paddr < tck->base_physical_address + 0x400000) {
+                    found = 1;
+                }
+            }
+        }
+        if (found) {
+            target_tree = tck;
             idx = target_tree->largest_avail - seL4_PageBits;
         }
     }
@@ -267,7 +284,7 @@ static int _capbuddy_try_acquire_multiple_frames_at(allocman_t *alloc, uintptr_t
         cookie = vbt_query_avail_memory_region(alloc, target_tree, real_size, &err);
     }
     if (err != seL4_NoError) {
-        ZF_LOGV("Failed to query cookie in a virtual-bitmap-tree: [%08x], %d", paddr, real_size);
+        ZF_LOGE("Failed to query cookie in a virtual-bitmap-tree: [%016lx], %lu", paddr, real_size);
         return err;
     }
 
@@ -420,6 +437,8 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
     if (!alloc->have_utspace) {
         return err;
     }
+    /* index of the target tree in the cookie_map */
+    size_t pptr_cookie_index;
     /***
      * constant values to create a new virtual-bitmap-tree (configurable)
      */
@@ -519,6 +538,15 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
         ZF_LOGE("Failed to append newly created virtual-bitmap-tree to allocator");
         return err;
     }
+
+    /* 22: 4MB */
+    pptr_cookie_index = target_tree->base_physical_address >> 22;
+    if (alloc->utspace_capbuddy_memory_pool.cookie_map[pptr_cookie_index]) {
+        ZF_LOGE("Failed to record a new vbt: overlapped blocks: %lu, paddr: %016lu", pptr_cookie_index, paddr);
+        return err;
+    }
+    alloc->utspace_capbuddy_memory_pool.cookie_map[pptr_cookie_index] = target_tree;
+
     return seL4_NoError;
 }
 
@@ -578,13 +606,15 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t size_bits,
         }
         if (err != seL4_NoError) {
             allocman_cspace_free(alloc, &untyped_original);
-            if (config_set(CONFIG_LIB_ALLOCMAN_DEBUG)) {
-                ZF_LOGE("Failed to allocate original untyped object of size: %ld", BIT(10 + seL4_PageBits));
-            }
+            ZF_LOGE("Failed to allocate original untyped object of size: %ld", BIT(10 + seL4_PageBits));
             return err;
         }
 
-        err = allocman_utspace_try_create_virtual_bitmap_tree(alloc, &untyped_original, 10, paddr);
+        uintptr_t pptr;
+        /* pptr is useful for vbt metadata initialisation */
+        pptr = allocman_utspace_paddr(alloc, untyped_original_cookie, 10 + seL4_PageBits);
+
+        err = allocman_utspace_try_create_virtual_bitmap_tree(alloc, &untyped_original, 10, pptr);
         if (err != seL4_NoError) {
             allocman_utspace_free(alloc, untyped_original_cookie, 10 + seL4_PageBits);
             allocman_cspace_free(alloc, &untyped_original);

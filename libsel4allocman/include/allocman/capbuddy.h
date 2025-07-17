@@ -8,6 +8,9 @@
 #include <allocman/vbt.h>
 #include <utils/sglib.h>
 
+/* number of cookie, each for a tree -> 4MB/tree */
+#define MAX_COOKIE_NUM  1024
+
 #define DEFINE_NODE_VBTREE(NAME,TYPE,ATTR) \
     typedef struct NAME {   \
         TYPE ATTR;          \
@@ -23,4 +26,6 @@ typedef struct capbuddy_memory_pool {
     vbt_t *cell[11];
     /* try replace O(n) list with O(logn) for searching */
     node_vbtree *cookie_rb_tree;
+    /* paddr O(1) search map */
+    vbt_t *cookie_map[MAX_COOKIE_NUM];
 } capbuddy_memory_pool_t;
