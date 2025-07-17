@@ -77,7 +77,6 @@ static void __bitmap_update_memory_region_released(void *data, int mr_idx)
             return;
         }
         idx >>= 1;
-        if (idx == 0) break;
     }
 }
 
@@ -392,7 +391,6 @@ static void __two_level_bitmap_update_memory_region_released(void *data, const v
             break;
         }
         idx >>= 1;
-        if (idx == 0) break;
     }           
 #undef CHECK_REQUEST_L1_BASED
 }
