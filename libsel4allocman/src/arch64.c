@@ -175,11 +175,17 @@ static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t 
         return;
     }
 
-    for (int i = 32; i < 64 && !(cell->i2); ++i) {
-        if (!VBT_AND(l1->map, VBT_INDEX_BIT(i))) {
-            continue;
+    size_t map_l1;
+    size_t avail_index;
+
+    map_l1 = l1->map;
+
+    while (!cell->i2) {
+        avail_index = 64 - FFSL(map_l1);
+        if (avail_index < 32) {
+            break;
         }
-        l2 = &target->l2[BITMAP_SUB_OFFSET(i)];
+        l2 = &target->l2[BITMAP_SUB_OFFSET(avail_index)];
 
         int base = L2IDX(fn);
         int avail = CLZL(MASK((BITMAP_SIZE) - base) & (l2->map));
@@ -188,8 +194,10 @@ static void __two_level_bitmap_try_query_avail_memory_region(void *data, size_t 
             /* available memory region is retrieved */
             *err = seL4_NoError;
             /* two-level (size < 256k) */
-            cell->i1 = i;
+            cell->i1 = avail_index;
             cell->i2 = avail;
+        } else {
+            map_l1 &= ~(1ULL << FFSL(map_l1));
         }
     }
 }
