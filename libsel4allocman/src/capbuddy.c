@@ -364,12 +364,8 @@ int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
     return _allocman_cspace_csa(alloc, slots, num_bits);
 }
 
-static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc, vbt_t *tree)
+static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc, node_vbtree **pcookie_rb_tree, vbt_t *tree)
 {
-#undef TREE_COOKIE_COMPARE_CPTR
-#define TREE_COOKIE_COMPARE_CPTR(c1, c2, cmp) \
-    (c1->frames_cptr_base cmp c2->frames_cptr_base)
-
     int err;
     node_vbtree *tx;
     /* Allocate space for new cookie's metadata */
@@ -385,13 +381,12 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
     tx->frames_cptr_base = tree->frame_sequence.capPtr;
     tx->target_tree = tree;
 
-    err = add_vbt_tree_node(&alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, tx);
+    err = add_vbt_tree_node(pcookie_rb_tree, tx);
     if (err) {
         ZF_LOGE("Failed to add new vbt tree to the cookie rbtree");
         return err;
     }
     return seL4_NoError;
-#undef TREE_COOKIE_COMPARE_CPTR
 }
 
 static void _allocman_utspace_subtract_virtual_bitmap_tree_cookie(allocman_t *alloc, node_vbtree **pcookie_rb_tree, seL4_CPtr fbcptr)
@@ -525,8 +520,7 @@ int allocman_utspace_try_create_virtual_bitmap_tree(allocman_t *alloc, const csp
      * Rather than the virtual-bitmap-tree itself, we need to store its metdata for allocman
      * (the allocator) to do bookkeeping jobs and managing all available & unavailable trees.
      */
-    //err = _allocman_utspace_append_virtual_bitmap_tree_cookie(alloc, &alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, target_tree);
-    err = _allocman_utspace_append_virtual_bitmap_tree_cookie(alloc, target_tree);
+    err = _allocman_utspace_append_virtual_bitmap_tree_cookie(alloc, &alloc->utspace_capbuddy_memory_pool.cookie_rb_tree, target_tree);
     if (err != seL4_NoError) {
         ZF_LOGE("Failed to append newly created virtual-bitmap-tree to allocator");
         return err;
