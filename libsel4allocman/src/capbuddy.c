@@ -197,10 +197,6 @@ static int _capbuddy_try_acquire_multiple_frames_at(allocman_t *alloc, uintptr_t
     }
     capbuddy_memory_pool_t *pool = (capbuddy_memory_pool_t *)(&alloc->utspace_capbuddy_memory_pool);
 
-#undef TREE_COOKIE_DETERMINE_PADDR
-#define TREE_COOKIE_DETERMINE_PADDR(tptr, paddr) \
-    ((tptr->paddr_head <= paddr) && (tptr->paddr_tail > paddr))
-
 #ifdef CONFIG_LIB_ALLOCMAN_DEBUG
     /* Make sure the arg 'real_size' of the requested memory region is legal */
     assert(real_size >= seL4_PageBits);
@@ -334,8 +330,6 @@ static int _capbuddy_try_acquire_multiple_frames_at(allocman_t *alloc, uintptr_t
     target_tree->next = NULL;
     target_tree->prev = NULL;
     return seL4_NoError;
-
-#undef TREE_COOKIE_DETERMINE_PADDR
 }
 
 static int _allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
@@ -376,8 +370,8 @@ static int _allocman_utspace_append_virtual_bitmap_tree_cookie(allocman_t *alloc
     }
     tx = (node_vbtree *)memset(tx, 0, sizeof(node_vbtree));
 
-    tx->paddr_head = tree->base_physical_address;
-    tx->paddr_tail = tree->base_physical_address + (1U << 22); /* 12 page_size + 10 page_num */
+    //tx->paddr_head = tree->base_physical_address;
+    //tx->paddr_tail = tree->base_physical_address + (1U << 22); /* 12 page_size + 10 page_num */
     tx->frames_cptr_base = tree->frame_sequence.capPtr;
     tx->target_tree = tree;
 
