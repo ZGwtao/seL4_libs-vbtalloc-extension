@@ -18,7 +18,7 @@ typedef struct cspace_interface {
     int (*alloc)(struct allocman *alloc, void *cookie, cspacepath_t *path);
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
     int (*csa)(struct allocman *alloc, void *cookie, cspacepath_t *path, size_t num_bits);
-    int (*pool)(struct allocman *alloc, void *_cspace, seL4_CPtr slot);
+    int (*pool)(struct allocman *alloc, void *_cspace, seL4_CPtr slot, size_t num_bits);
 #endif
     void (*free)(struct allocman *alloc, void *cookie, const cspacepath_t *path);
     cspacepath_t (*make_path)(void *cookie, seL4_CPtr slot);

@@ -246,7 +246,7 @@ static int am_vka_cspace_is_from_pool(void *data, seL4_CPtr cptr)
      * @param: cptr : target capability pointer (to be determined
      *  if it's allocated from the memory pool of CapBuddy or not)
      */
-    return allocman_cspace_target_object_allocated_from_pool((allocman_t *)data, cptr);
+    return allocman_cspace_target_object_allocated_from_pool((allocman_t *)data, cptr, 0);
 }
 
 #endif

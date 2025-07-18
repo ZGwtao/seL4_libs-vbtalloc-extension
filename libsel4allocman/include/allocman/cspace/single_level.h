@@ -48,7 +48,7 @@ void _cspace_single_level_free(struct allocman *alloc, void *_cspace, const cspa
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
 
 int _cspace_single_level_csa(struct allocman *alloc, void *_cspace, cspacepath_t *slots, size_t num_bits);
-int _cspace_single_level_pool(struct allocman *alloc, void *_cspace, seL4_CPtr slot);
+int _cspace_single_level_pool(struct allocman *alloc, void *_cspace, seL4_CPtr slot, size_t num_bits);
 
 #endif
 

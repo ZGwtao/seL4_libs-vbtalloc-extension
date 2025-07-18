@@ -185,10 +185,24 @@ int _cspace_single_level_csa(struct allocman *alloc, void *_cspace, cspacepath_t
     return 0;
 }
 
-int _cspace_single_level_pool(struct allocman *alloc, void *_cspace, seL4_CPtr slot)
+int _cspace_single_level_pool(struct allocman *alloc, void *_cspace, seL4_CPtr slot, size_t num_bits)
 {
-    cspace_single_level_t *cspace = (cspace_single_level_t *)_cspace;
-    return (slot - cspace->config.first_slot) < cspace->contiguous_limit * BITS_PER_WORD;
+    size_t bound;
+    size_t num_slots;
+    cspace_single_level_t *cspace;    
+    cspace = (cspace_single_level_t *)_cspace;
+    /* csa upper boundary */
+    bound = cspace->contiguous_limit * BITS_PER_WORD;
+    /* number of slots starting at var:slot */
+    num_slots = (1UL << num_bits) - 1;
+
+    /* determine if this region is within the csa area */
+    if ((slot - cspace->config.first_slot) < bound) {
+        if ((slot + num_slots - cspace->config.first_slot) < bound) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 #endif

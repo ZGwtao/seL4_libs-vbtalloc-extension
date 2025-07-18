@@ -173,20 +173,13 @@ static inline void vka_free_object(vka_t *vka, vka_object_t *object)
         return;
     }
 
-    int fnum;
-    seL4_CPtr fcptr;
-
-    /* fcptr: capability pointer of the starting frame */    
-    fcptr = object->cptr;
-    /* fnum: total number of frame in a row */
-    fnum = BIT(object->size_bits - seL4_PageBits);
-
-    for (int i = 0; i < fnum; ++i) {
+    size_t fnum = BIT(object->size_bits - seL4_PageBits);
+    for (size_t i = 0; i < fnum; ++i) {
 #ifdef CONFIG_DEBUG
         /* we just assume no external allocated cptrs */
-        assert(vka_cspace_is_from_pool(vka, fcptr + i));
+        assert(vka_cspace_is_from_pool(vka, object->cptr + i));
 #endif
-        vka_utspace_try_free_from_pool(vka, fcptr + i);
+        vka_utspace_try_free_from_pool(vka, object->cptr + i);
     }
 }
 
