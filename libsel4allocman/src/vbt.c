@@ -265,7 +265,7 @@ void vbt_update_memory_region_acquired(vbt_t *data, void *cookie)
  * @param data : target virtual-bitmap-tree with architectural supports
  * @param cptr : <TODO>
  */
-void vbt_update_memory_region_released(vbt_t *data, seL4_CPtr cptr)
+void vbt_update_memory_region_released(vbt_t *data, seL4_CPtr cptr, size_t num_bits)
 {
     if (!data) {
         ZF_LOGE("vbt_data is NULL");
@@ -275,14 +275,48 @@ void vbt_update_memory_region_released(vbt_t *data, seL4_CPtr cptr)
         ZF_LOGE("vbt arch_data is NULL, initialize it first");
         return;
     }
+    /***
+     * num_bits:
+     *  -> number of frames in the block to release.
+     *  -> 0 means BIT(0)=1, only 1 frame to free
+     *  -> 1 for 2, 2 for 4, ...
+     *      -> maximum = 10? -> 1024
+     */
+    if (num_bits > 10) {
+        ZF_LOGE("allocman: super large block free batching unimplemented yet");
+        return;
+    }
+    //
+    // TODO:
+    //      currently no batching for 32 bit!
+    //
 #if CONFIG_WORD_SIZE == 32
+
     address_index_t cell;
     cell.idx = cptr - data->frame_sequence.capPtr + 1024;
-#else
+
+#else /* 64 bit machine word */
+
+    /* address of the memory block to release */
     address_cell_t cell;
-    cell.i1 = 32 + (cptr - data->frame_sequence.capPtr) / 32;
-    cell.i2 = 32 + (cptr - data->frame_sequence.capPtr) % 32;
+
+    if (num_bits > BITMAP_LEVEL) {
+        /* l1 bitmap */
+        cell.i1 = L1IDX(num_bits) + (cptr - data->frame_sequence.capPtr) / (1ULL << num_bits);
+        cell.i2 = 0;
+    } else {
+        /* offset within the level 2 bitmap */
+        size_t offset_l2;
+        /* from within l2, the calculation is the same to l1 */
+        offset_l2 = (cptr - data->frame_sequence.capPtr) % 32;
+        /* base: 32, because all l2 bitmap bits are between 32 and 63 */
+        cell.i1 = 32 + (cptr - data->frame_sequence.capPtr) / 32;
+        /* base: depends on the block size */
+        cell.i2 = L2IDX(num_bits) + offset_l2 / (1ULL << num_bits);
+    }
+
 #endif
+
     data->arch_release_mr(data->arch_data, &cell);
     data->largest_avail = data->arch_update_largest(data->arch_data);
 }

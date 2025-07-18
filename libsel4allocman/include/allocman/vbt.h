@@ -56,6 +56,6 @@ void vbt_query_try_cookie_release(void *alloc, void *cookie);
 
 void vbt_update_memory_region_acquired(vbt_t *data, void *cookie);
 
-void vbt_update_memory_region_released(vbt_t *data, seL4_CPtr cptr);
+void vbt_update_memory_region_released(vbt_t *data, seL4_CPtr cptr, size_t num_bits);
 
 seL4_CPtr vbt_calculate_target_frame_cptr_offset(vbt_t *data, const void *cookie);

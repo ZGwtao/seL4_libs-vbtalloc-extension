@@ -645,7 +645,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t size_bits,
     return 0;
 }
 
-void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size_t size_bits)
+void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size_t num_bits)
 {
 #undef TREE_NODE_CPTR_DETERMINE_A_WITHIN_B
 #define TREE_NODE_CPTR_DETERMINE_A_WITHIN_B(a,b) \
@@ -671,7 +671,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
     /***
      * FIXME:
      */
-    vbt_update_memory_region_released(target, cptr);
+    vbt_update_memory_region_released(target, cptr, num_bits);
 
     /* No status change, just return then */
     if (largest_avail == target->largest_avail) {
