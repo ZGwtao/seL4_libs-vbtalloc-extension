@@ -174,10 +174,14 @@ static inline void vka_free_object(vka_t *vka, vka_object_t *object)
     }
 
     size_t fnum = BIT(object->size_bits - seL4_PageBits);
-#ifdef CONFIG_DEBUG
+
     /* we just assume no external allocated cptrs */
-    assert(vka_cspace_is_from_pool(vka, object->cptr, fnum));
-#endif
+    if (!vka_cspace_is_from_pool(vka, object->cptr, fnum)) {
+        ZF_LOGE("vka: try to free external frames from capbuddy in continuous free");
+        /* should we do something like just return here? */
+        return;
+    }
+
     for (size_t i = 0; i < fnum; ++i) {
         vka_utspace_try_free_from_pool(vka, object->cptr + i);
     }
