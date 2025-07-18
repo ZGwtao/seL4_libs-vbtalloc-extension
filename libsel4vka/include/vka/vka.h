@@ -91,7 +91,7 @@ typedef int (*vka_utspace_alloc_maybe_device_fn)(void *data, const cspacepath_t 
 
 typedef int (*vka_utspace_try_alloc_from_pool_fn)(void *data, seL4_Word size_bits,
                                                   uintptr_t paddr, bool can_use_dev, cspacepath_t *res);
-typedef void (*vka_utspace_try_free_from_pool_fn)(void *data, seL4_CPtr cptr);
+typedef void (*vka_utspace_try_free_from_pool_fn)(void *data, seL4_CPtr cptr, size_t num_bits);
 typedef int (*vka_cspace_is_from_pool_fn)(void *data, seL4_CPtr cptr, size_t num_bits);
 
 #endif
@@ -339,7 +339,7 @@ static inline int vka_utspace_try_alloc_from_pool(vka_t *vka, seL4_Word size_bit
     return vka->utspace_try_alloc_from_pool(vka->data, size_bits, paddr, can_use_dev, res);
 }
 
-static inline void vka_utspace_try_free_from_pool(vka_t *vka, seL4_CPtr cptr)
+static inline void vka_utspace_try_free_from_pool(vka_t *vka, seL4_CPtr cptr, size_t num_bits)
 {
     if (!vka) {
         ZF_LOGE("vka is NULL");
@@ -351,7 +351,7 @@ static inline void vka_utspace_try_free_from_pool(vka_t *vka, seL4_CPtr cptr)
         return;
     }
 
-    vka->utspace_try_free_from_pool(vka->data, cptr);
+    vka->utspace_try_free_from_pool(vka->data, cptr, num_bits);
 }
 
 static inline int vka_cspace_is_from_pool(vka_t *vka, seL4_CPtr cptr, size_t num_bits)
