@@ -586,31 +586,32 @@ void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
                 tree->sub_trees[i].tnode[0] = MASK(63) & (uint64_t)-1;
             }
         }
-    } else {
-        subl = &tree->sub_trees[BITMAP_SUB_OFFSET(path->toplevel)];
-        vbt_tree_restore_blk_from_bitmap(subl, path->sublevel);
-        int sublv_tree_index = path->toplevel;
-        int buddy_tree_index = sublv_tree_index % 2 ? sublv_tree_index - 1 : sublv_tree_index + 1;
-        if (subl->tnode[0] == MASK(63) &&
-            subl->tnode[0] == tree->sub_trees[BITMAP_SUB_OFFSET(buddy_tree_index)].tnode[0]) {
-            topl->tnode[0] |= (VBT_INDEX_BIT(sublv_tree_index));
-            topl->tnode[0] |= (VBT_INDEX_BIT(buddy_tree_index));
-            int buddy;
-            int idx = path->toplevel >> 1;
-            uint64_t dtc = VBT_INDEX_BIT(idx);
-            while(idx) {
-                topl->tnode[0] |= dtc;
-                buddy = idx % 2 ? idx - 1 : idx + 1;
-                if (!VBT_AND(topl->tnode[0], VBT_INDEX_BIT(buddy))) {
-                    goto x;
-                }
-                idx >>= 1;
-                if (idx == 0) break;
-                dtc = VBT_INDEX_BIT(idx);
-            }           
-        }
+        vbt_tree_update_avail_size(tree);
+        return;
     }
-x:
+    
+    subl = &tree->sub_trees[BITMAP_SUB_OFFSET(path->toplevel)];
+    vbt_tree_restore_blk_from_bitmap(subl, path->sublevel);
+    int sublv_tree_index = path->toplevel;
+    int buddy_tree_index = sublv_tree_index % 2 ? sublv_tree_index - 1 : sublv_tree_index + 1;
+    
+    if (subl->tnode[0] == MASK(63) &&
+        subl->tnode[0] == tree->sub_trees[BITMAP_SUB_OFFSET(buddy_tree_index)].tnode[0])
+    {
+        topl->tnode[0] |= (VBT_INDEX_BIT(sublv_tree_index));
+        topl->tnode[0] |= (VBT_INDEX_BIT(buddy_tree_index));
+    
+        int buddy;
+        int idx = path->toplevel >> 1;
+        while(idx) {
+            topl->tnode[0] |= (1ULL << (BITMAP_SIZE - 1 - idx));
+            buddy = idx % 2 ? idx - 1 : idx + 1;
+            if (!((topl->tnode[0] >> (BITMAP_SIZE - 1 - buddy)) & 1)) {
+                break;
+            }
+            idx >>= 1;
+        }           
+    }
     vbt_tree_update_avail_size(tree);
 }
 
@@ -654,39 +655,6 @@ void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
     }
 }
 
-void tree_list_debug_print(struct vbt_tree **treeList, struct vbt_tree *empty) {
-    for (int i = 0; i < 11; ++i) {
-        printf("treelist[%d]: ", i);
-        for (struct vbt_tree *tree = treeList[i]; tree; tree = tree->next) {
-            if (tree) {
-                printf(" < capPtr: [%ld] ", tree->pool_range.capPtr);
-                if (tree->prev) {
-                    printf(" prev: {%ld} ", tree->prev->pool_range.capPtr);
-                }
-                if (tree->next) {
-                    printf(" next: {%ld} ", tree->next->pool_range.capPtr);
-                }
-                printf("> ");
-            }
-        }
-        printf("\n");
-    }
-    printf("\n [EmptyList] >>>> : \n");
-    for (struct vbt_tree *tree = empty; tree; tree = tree->next) {
-        if (tree) {
-            printf("   < capPtr: [%ld] ", tree->pool_range.capPtr);
-            if (tree->prev) {
-                printf(" prev: {%ld} ", tree->prev->pool_range.capPtr);
-            }
-            if (tree->next) {
-                printf(" next: {%ld} ", tree->next->pool_range.capPtr);
-            }
-            printf("> \n");
-        }
-    }
-    printf("\n");
-}
-
 void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
 {
     assert(tree);
@@ -711,18 +679,6 @@ void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
     curr->next = NULL;
     curr->prev = NULL;
     return;
-}
-
-void vbt_tree_debug_print(struct vbt_tree *tree) {
-    printf(">> cur-blk-size: %ld\n", tree->blk_cur_size);
-    printf(">> pool_range: %ld\n", tree->pool_range.capPtr);
-    printf("top-level: [%016llx]\n", tree->top_tree.tnode[0]);
-    for (int i = 0; i < 32; ++i) {
-        printf("sublv[%2d]: [%016llx] ", i, tree->sub_trees[i].tnode[0]);
-        if ((i + 1) % 4 == 0 && i) {
-            printf("\n");
-        }
-    }
 }
 
 int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res)
