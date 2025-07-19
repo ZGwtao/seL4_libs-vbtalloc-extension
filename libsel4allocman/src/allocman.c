@@ -507,7 +507,7 @@ void vbt_tree_update_avail_size(vbtree_t *tree)
         while (map_l1) {
             blk_cur_idx = 64 - FFSL(map_l1);
             if (blk_cur_idx < 32) break;
-            t = CLZL(MASK(63) & tree->sub_trees[BITMAP_SUB_OFFSET(blk_cur_idx)].tnode[0]);
+            t = CLZL(tree->sub_trees[BITMAP_SUB_OFFSET(blk_cur_idx)].tnode[0]);
             utmost = t < utmost ? t: utmost;
             if (utmost == 1) break;
             map_l1 &= ~(1ULL << (FFSL(map_l1) - 1));
