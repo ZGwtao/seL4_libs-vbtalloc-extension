@@ -821,7 +821,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
         vbt_tree_list_remove(&alloc->frame_pool.mem_treeList[curr_blk_size - seL4_PageBits], ptr_tree);
 
         if (ptr_tree->blk_cur_size != 0) {
-            vbt_tree_list_insert((alloc->frame_pool.mem_treeList + ptr_tree->blk_cur_size - seL4_PageBits), ptr_tree);
+            vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[ptr_tree->blk_cur_size - seL4_PageBits], ptr_tree);
         } else {
             if (ptr_tree->prev) {
                 ptr_tree->prev->next = ptr_tree->next;
