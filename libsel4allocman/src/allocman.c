@@ -518,16 +518,19 @@ void vbt_tree_update_avail_size(struct vbt_tree *tree)
 {
     struct vbt_bitmap *topl = &tree->top_tree;
     struct vbt_bitmap *subl = NULL;
+
     int t, utmost = 64;
     int blk_cur_idx = CLZL(topl->tnode[0]);
     if (blk_cur_idx >= 32) {
-        for (int i = blk_cur_idx; i < 64; ++i) {
-            if (VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
-                t = CLZL(MASK(63) & tree->sub_trees[BITMAP_SUB_OFFSET(i)].tnode[0]);
-                if (t < utmost) {
-                    utmost = t;
-                }
-            }
+        /* top level bitmap */
+        size_t map_l1 = topl->tnode[0];
+        while (map_l1) {
+            blk_cur_idx = 64 - FFSL(map_l1);
+            if (blk_cur_idx < 32) break;
+            t = CLZL(MASK(63) & tree->sub_trees[BITMAP_SUB_OFFSET(blk_cur_idx)].tnode[0]);
+            utmost = t < utmost ? t: utmost;
+            if (utmost == 1) break;
+            map_l1 &= ~(1ULL << (FFSL(map_l1) - 1));
         }
         tree->blk_cur_size = (BITMAP_DEPTH) - BITMAP_GET_LEVEL(utmost) + (VBT_PAGE_GRAIN);
     } else {
