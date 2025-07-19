@@ -4,6 +4,7 @@
 #include <sel4/sel4.h>
 #include <vka/vka.h>
 #include <stdint.h>
+#include <utils/sglib.h>
 
 #define BITMAP_DEPTH            6
 #define BITMAP_SIZE             64
@@ -27,17 +28,19 @@ struct vbt_bitmap {
     uint64_t tnode[1];
 };
 
-struct vbt_tree {
+typedef struct vbt_tree {
     uintptr_t       paddr;
     vbtspacepath_t  entry;
-    cspacepath_t    origin;
-    cspacepath_t    pool_range;
-    size_t          blk_max_size;
     size_t          blk_cur_size;
-    struct vbt_tree *next, *prev;
     struct vbt_bitmap top_tree;
     struct vbt_bitmap sub_trees[32];
-};
+
+    seL4_CPtr       frames_cptr_base;
+    /* rb-tree cookie */
+    char color_field;
+    struct vbt_tree *left;
+    struct vbt_tree *right;
+} vbt_tree;
 
 typedef struct tcookie {
     seL4_CPtr cptr;
