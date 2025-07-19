@@ -321,11 +321,11 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
 
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
 
-void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
-void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
+void vbt_tree_init(struct allocman *alloc, vbtree_t *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
+void vbt_tree_query_blk(vbtree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
 void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path);
-void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree);
-void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree);
+void vbt_tree_list_insert(vbtree_t **treeList, vbtree_t *tree);
+void vbt_tree_list_remove(vbtree_t **treeList, vbtree_t *tree);
 int vbt_tree_acquire_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res);
 
 static inline int vbt_tree_window_at_level(int target_layer, int index) {
@@ -344,7 +344,7 @@ static uint64_t vbt_tree_sub_add_up(int index)
     return dtc;
 }
 
-void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t paddr,
+void vbt_tree_init(struct allocman *alloc, vbtree_t *tree, uintptr_t paddr,
                    seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size)
 {
     tree->paddr = paddr;
@@ -396,7 +396,7 @@ void vbt_tree_init(struct allocman *alloc, struct vbt_tree *tree, uintptr_t padd
     }
 }
 
-void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr)
+void vbt_tree_query_blk(vbtree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr)
 {
     res->sublevel = 0;
     res->toplevel = 0;
@@ -465,7 +465,7 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
     }
 }
 
-seL4_CPtr vbt_tree_acq_cap_idx(struct vbt_tree *tree, const vbtspacepath_t *path)
+seL4_CPtr vbt_tree_acq_cap_idx(vbtree_t *tree, const vbtspacepath_t *path)
 {
     if (path->sublevel == 0) {
         int lv_size = BITMAP_DEPTH - BITMAP_GET_LEVEL(path->toplevel) + BITMAP_LEVEL;
@@ -516,7 +516,7 @@ void vbt_tree_release_blk_from_bitmap(void *_bitmap, int index) {
     bitmap->tnode[0] &= ~(VBT_INDEX_BIT(index));
 }
 
-void vbt_tree_update_avail_size(struct vbt_tree *tree)
+void vbt_tree_update_avail_size(vbtree_t *tree)
 {
     struct vbt_bitmap *topl = &tree->top_tree;
     struct vbt_bitmap *subl = NULL;
@@ -544,7 +544,7 @@ void vbt_tree_update_avail_size(struct vbt_tree *tree)
 }
 
 void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path) {
-    struct vbt_tree *tree = (struct vbt_tree*)_tree;
+    vbtree_t *tree = (vbtree_t*)_tree;
     struct vbt_bitmap *topl = &tree->top_tree;
     struct vbt_bitmap *subl = NULL;
 
@@ -576,7 +576,7 @@ void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
 }
 
 void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path) {
-    struct vbt_tree *tree = (struct vbt_tree*)_tree;
+    vbtree_t *tree = (vbtree_t*)_tree;
     struct vbt_bitmap *topl = &tree->top_tree;
     struct vbt_bitmap *subl = NULL;
 
@@ -618,13 +618,13 @@ void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
     vbt_tree_update_avail_size(tree);
 }
 
-void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
+void vbt_tree_list_insert(vbtree_t **treeList, vbtree_t *tree)
 {
     assert(tree);
-    
+
     if (*treeList) {
-        struct vbt_tree *curr = *treeList;
-        struct vbt_tree *head = *treeList;
+        vbtree_t *curr = *treeList;
+        vbtree_t *head = *treeList;
         for (; curr && curr->next && curr->next->pool_range.capPtr < tree->pool_range.capPtr; curr = curr->next);
         if (curr->pool_range.capPtr < tree->pool_range.capPtr) {
             tree->prev = curr;
@@ -658,13 +658,13 @@ void vbt_tree_list_insert(struct vbt_tree **treeList, struct vbt_tree *tree)
     }
 }
 
-void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
+void vbt_tree_list_remove(vbtree_t **treeList, vbtree_t *tree)
 {
     assert(tree);
     assert(treeList);
 
-    struct vbt_tree *curr = *treeList;
-    struct vbt_tree *head = *treeList;
+    vbtree_t *curr = *treeList;
+    vbtree_t *head = *treeList;
 
     for (; curr && curr != tree; curr = curr->next);
 
@@ -684,46 +684,14 @@ void vbt_tree_list_remove(struct vbt_tree **treeList, struct vbt_tree *tree)
     return;
 }
 
-int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t real_size, seL4_CPtr *res)
+static vbtree_t *capbuddy_query_avail_vbt(struct vbt_forrest *pool, size_t real_size)
 {
     size_t size_bits = real_size - seL4_PageBits;
-    assert(size_bits >= 0);
-    int target_level = size_bits;
-    struct vbt_tree *tree = pool->mem_treeList[target_level];
-    for (int i = target_level + 1; !tree && i < 11; ++i) {
+    vbtree_t *tree = pool->mem_treeList[size_bits];
+    for (size_t i = size_bits + 1; !tree && i < 11; ++i) {
         tree = pool->mem_treeList[i];
     }
-    struct vbt_tree *old = tree;
-    if (!tree) {
-        return 1;
-    }
-
-    size_t curr_blk_size = tree->blk_cur_size;
-    vbtspacepath_t blk = {0, 0};
-    
-    vbt_tree_query_blk(tree, real_size, &blk, ALLOCMAN_NO_PADDR);
-    *res = vbt_tree_acq_cap_idx(tree, &blk) + tree->pool_range.capPtr;    
-    vbt_tree_release_blk_from_vbt_tree(tree, &blk);
-
-    if (tree->blk_cur_size == curr_blk_size) {
-        return 0;
-    }
-    vbt_tree_list_remove(&pool->mem_treeList[curr_blk_size - 12], tree);
-    if (tree->blk_cur_size != 0) {
-        vbt_tree_list_insert(&pool->mem_treeList[tree->blk_cur_size - 12], tree);
-        return 0;
-    }
-
-    if (tree->prev) {
-        tree->prev->next = tree->next;
-    }
-    if (tree->next) {
-        tree->next->prev = tree->prev;
-    }
-    tree->prev = NULL;
-    tree->next = NULL;
-
-    return 0;
+    return tree;
 }
 
 static int _allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
@@ -748,7 +716,7 @@ int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
     return _allocman_cspace_csa(alloc, slots, num_bits);
 }
 
-static int _allocman_utspace_append_tcookie(allocman_t *alloc, struct vbt_tree *tree)
+static int _allocman_utspace_append_tcookie(allocman_t *alloc, vbtree_t *tree)
 {
     int error;
 
@@ -800,11 +768,13 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
     if (!alloc->have_utspace) {
         return 1;
     }
-
+    /* dest slot for the starting cptr */
     seL4_CPtr slot;
-    while (vbt_tree_acquire_multiple_frame_from_pool(&alloc->frame_pool, size_bits, &slot)) {
 
-        struct vbt_tree *nt = NULL;
+    vbtree_t *ptr_tree;
+    ptr_tree = capbuddy_query_avail_vbt(&alloc->frame_pool, size_bits);
+
+    if (!ptr_tree) {
         cspacepath_t src_slot;
         cspacepath_t des_slot;
         seL4_CPtr cookie;
@@ -816,49 +786,79 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
             return error;
         }
 
+        /* allocate 4M untyped for constructing a 2-level vbtree */
         cookie = allocman_utspace_alloc(alloc, 22, seL4_UntypedObject, &src_slot, false, &error);
         if (error) {
             allocman_cspace_free(alloc, &src_slot);
             return error;
         }
+        /* retrieve paddr --> useful for query if paddr is specified */
         paddr = allocman_utspace_paddr(alloc, cookie, 22);
 
-        nt = (struct vbt_tree *)allocman_mspace_alloc(alloc, sizeof(struct vbt_tree), &error);
+        ptr_tree = (vbtree_t *)allocman_mspace_alloc(alloc, sizeof(vbtree_t), &error);
         if (error) {
             ZF_LOGE("Failed to alloc metadata to keep vbt-tree info.");
             allocman_cspace_free(alloc, &src_slot);
             allocman_utspace_free(alloc, cookie, 22);
             return error;
         }
+        /* create space for the newly created capabilities */
         error = allocman_cspace_csa(alloc, &des_slot, 10);
         if (error) {
             ZF_LOGE("Failed to alloc contiguous slots for pre-allocated frames.");
             allocman_cspace_free(alloc, &src_slot);
             allocman_utspace_free(alloc, cookie, 22);
-            allocman_mspace_free(alloc, nt, sizeof(*nt));
+            allocman_mspace_free(alloc, ptr_tree, sizeof(vbtree_t));
             return error;
         }
 
         vka_object_t origin = {src_slot.capPtr, cookie, seL4_UntypedObject, 22};
-        error = vka_untyped_retype(&origin, seL4_ARCH_4KPage, 12, 1024, &des_slot);
+        error = vka_untyped_retype(&origin, seL4_ARCH_4KPage, seL4_PageBits, BIT(10), &des_slot);
         if (error) {
             ZF_LOGE("[ERROR]: FAILED TO RETYPE CONTIGUOUS 4K PAGES.");
             return error;
         }
 
-        vbt_tree_init(alloc, nt, paddr, src_slot.capPtr, des_slot, 22);
-        vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[10], nt);
+        vbt_tree_init(alloc, ptr_tree, paddr, src_slot.capPtr, des_slot, 22);
+        vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[10], ptr_tree);
 
-        error = _allocman_utspace_append_tcookie(alloc, nt);
+        /* for retrieving the dest tree to free a frame with cptr */
+        error = _allocman_utspace_append_tcookie(alloc, ptr_tree);
         if (error) {
+            /* ? */
+            ZF_LOGE("Failed to append new node into the vbtree cookie list");
             return error;
         }
     }
+    size_t curr_blk_size = ptr_tree->blk_cur_size;
+    vbtspacepath_t blk = {0, 0};
+    
+    vbt_tree_query_blk(ptr_tree, size_bits, &blk, ALLOCMAN_NO_PADDR);
+    slot = vbt_tree_acq_cap_idx(ptr_tree, &blk) + ptr_tree->pool_range.capPtr;    
+    vbt_tree_release_blk_from_vbt_tree(ptr_tree, &blk);
 
-    *res = allocman_cspace_make_path(alloc, slot);
-    if (size_bits != 12) {
-        res->window = BIT(size_bits - 12);
+    if (ptr_tree->blk_cur_size != curr_blk_size) {
+        vbt_tree_list_remove(&alloc->frame_pool.mem_treeList[curr_blk_size - seL4_PageBits], ptr_tree);
+
+        if (ptr_tree->blk_cur_size != 0) {
+            vbt_tree_list_insert((alloc->frame_pool.mem_treeList + ptr_tree->blk_cur_size - seL4_PageBits), ptr_tree);
+        } else {
+            if (ptr_tree->prev) {
+                ptr_tree->prev->next = ptr_tree->next;
+            }
+            if (ptr_tree->next) {
+                ptr_tree->next->prev = ptr_tree->prev;
+            }
+            ptr_tree->prev = NULL;
+            ptr_tree->next = NULL;
+        }
     }
+    /* make path for the starting cptr */
+    *res = allocman_cspace_make_path(alloc, slot);
+
+    /* several pages retrieved */
+    if (size_bits != seL4_PageBits)
+        res->window = BIT(size_bits - seL4_PageBits);
 
     return 0;
 }
@@ -874,7 +874,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
     assert(cptr >= tck->cptr);
     assert(cptr < tck->cptr + 1024);
 
-    struct vbt_tree *target = tck->tptr;
+    vbtree_t *target = tck->tptr;
     size_t blk_cur_size = target->blk_cur_size;
     size_t global = cptr - target->pool_range.capPtr;
     vbtspacepath_t blk = {

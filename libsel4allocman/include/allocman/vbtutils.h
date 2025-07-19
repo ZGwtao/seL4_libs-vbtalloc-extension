@@ -27,7 +27,7 @@ struct vbt_bitmap {
     uint64_t tnode[1];
 };
 
-struct vbt_tree {
+typedef struct vbt_tree {
     uintptr_t       paddr;
     vbtspacepath_t  entry;
     cspacepath_t    origin;
@@ -37,18 +37,17 @@ struct vbt_tree {
     struct vbt_tree *next, *prev;
     struct vbt_bitmap top_tree;
     struct vbt_bitmap sub_trees[32];
-};
+} vbtree_t;
 
 typedef struct tcookie {
     seL4_CPtr cptr;
-    struct vbt_tree *tptr;
+    vbtree_t *tptr;
     struct tcookie *prev;
     struct tcookie *next;
 } tcookie_t;
 
 struct vbt_forrest {
-    struct vbt_tree *mem_treeList[11];
-    //struct vbt_tree *empty;
+    vbtree_t *mem_treeList[11];
     tcookie_t *tcookieList;
 };
 
