@@ -492,16 +492,13 @@ void vbt_tree_restore_blk_from_bitmap(void *_bitmap, int index) {
     }
 
     int idx = index >> 1;
-    uint64_t dtc = VBT_INDEX_BIT(idx);
     while(idx) {
-        bitmap->tnode[0] |= dtc;
+        bitmap->tnode[0] |= (1ULL << (BITMAP_SIZE - 1 - idx));
         buddy = idx % 2 ? idx - 1 : idx + 1;
-        if (!VBT_AND(bitmap->tnode[0], VBT_INDEX_BIT(buddy))) {
+        if (!((bitmap->tnode[0] >> (BITMAP_SIZE - 1 - buddy)) & 1)) {
             return;
         }
         idx >>= 1;
-        if (idx == 0) break;
-        dtc = VBT_INDEX_BIT(idx);
     }
 }
 
