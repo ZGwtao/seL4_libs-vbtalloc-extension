@@ -348,50 +348,28 @@ void vbt_tree_init(struct allocman *alloc, vbtree_t *tree, uintptr_t paddr,
                    seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size)
 {
     tree->paddr = paddr;
-    tree->entry.toplevel = 0;
-    tree->entry.sublevel = 0;
-    cspacepath_t origin_path = allocman_cspace_make_path(alloc, origin);
-    tree->origin.capPtr = origin_path.capPtr;
-    tree->origin.capDepth = origin_path.capDepth;
-    tree->origin.dest = origin_path.dest;
-    tree->origin.destDepth = origin_path.destDepth;
-    tree->origin.offset = origin_path.offset;
-    tree->origin.root = origin_path.root;
-    tree->origin.window = origin_path.window;
-    tree->pool_range.capPtr = dest_reg.capPtr;
-    tree->pool_range.capDepth = dest_reg.capDepth;
-    tree->pool_range.dest = dest_reg.dest;
-    tree->pool_range.destDepth = dest_reg.destDepth;
-    tree->pool_range.offset = dest_reg.offset;
-    tree->pool_range.root = dest_reg.root;
-    tree->pool_range.window = dest_reg.window;
-    tree->blk_max_size = real_size;
+    tree->frames_cptr_base = dest_reg.capPtr;
     tree->blk_cur_size = real_size;
-    tree->next = NULL;
-    tree->prev = NULL;
-    tree->top_tree.tnode[0] = 0ul;
-    for (size_t i = 0; i < 32; ++i) {
-        tree->sub_trees[i].tnode[0] = 0ul;
-    }
-    size_t size_bits = real_size - VBT_PAGE_GRAIN;
-    assert(size_bits && size_bits <= 10);
+
+    size_t size_bits = real_size - seL4_PageBits;
+
     if (size_bits < BITMAP_LEVEL) {
         tree->entry.toplevel = 32;
         tree->entry.sublevel = VBT_SUBLEVEL_INDEX(size_bits);
         tree->top_tree.tnode[0] |= VBT_INDEX_BIT(32);
         tree->sub_trees[0].tnode[0] |= VBT_INDEX_BIT(tree->entry.sublevel);
         tree->sub_trees[0].tnode[0] |= vbt_tree_sub_add_up(tree->entry.sublevel);
-    } else {
-        tree->entry.toplevel = VBT_TOPLEVEL_INDEX(size_bits);
-        tree->top_tree.tnode[0] |= VBT_INDEX_BIT(tree->entry.toplevel);
-        tree->top_tree.tnode[0] |= vbt_tree_sub_add_up(tree->entry.toplevel);
-        int window = vbt_tree_window_at_level(BITMAP_DEPTH, tree->entry.toplevel);
-        int idx = BITMAP_SUB_OFFSET(window * tree->entry.toplevel);
-        for (int i = idx; i < idx + window; ++i) {
-            if (VBT_AND(tree->top_tree.tnode[0], VBT_INDEX_BIT(i))) {
-                tree->sub_trees[i].tnode[0] = (uint64_t)-1;
-                tree->sub_trees[i].tnode[0] &= MASK(63);
-            }
+        return;
+    }
+    tree->entry.toplevel = VBT_TOPLEVEL_INDEX(size_bits);
+    tree->top_tree.tnode[0] |= VBT_INDEX_BIT(tree->entry.toplevel);
+    tree->top_tree.tnode[0] |= vbt_tree_sub_add_up(tree->entry.toplevel);
+    int window = vbt_tree_window_at_level(BITMAP_DEPTH, tree->entry.toplevel);
+    int idx = BITMAP_SUB_OFFSET(window * tree->entry.toplevel);
+    for (int i = idx; i < idx + window; ++i) {
+        if (VBT_AND(tree->top_tree.tnode[0], VBT_INDEX_BIT(i))) {
+            tree->sub_trees[i].tnode[0] = (uint64_t)-1;
+            tree->sub_trees[i].tnode[0] &= MASK(63);
         }
     }
 }
@@ -625,8 +603,8 @@ void vbt_tree_list_insert(vbtree_t **treeList, vbtree_t *tree)
     if (*treeList) {
         vbtree_t *curr = *treeList;
         vbtree_t *head = *treeList;
-        for (; curr && curr->next && curr->next->pool_range.capPtr < tree->pool_range.capPtr; curr = curr->next);
-        if (curr->pool_range.capPtr < tree->pool_range.capPtr) {
+        for (; curr && curr->next && curr->next->frames_cptr_base < tree->frames_cptr_base; curr = curr->next);
+        if (curr->frames_cptr_base < tree->frames_cptr_base) {
             tree->prev = curr;
             if (curr->next) {
                 tree->next = curr->next;
@@ -634,14 +612,14 @@ void vbt_tree_list_insert(vbtree_t **treeList, vbtree_t *tree)
             }
             curr->next = tree;
         } else {
-            assert(curr->pool_range.capPtr > tree->pool_range.capPtr);
+            assert(curr->frames_cptr_base > tree->frames_cptr_base);
             tree->next = curr;
             if (curr->prev) {
                 tree->prev = curr->prev;
                 curr->prev->next = tree;
             }
             curr->prev = tree;
-            if (head->pool_range.capPtr > tree->pool_range.capPtr) {
+            if (head->frames_cptr_base > tree->frames_cptr_base) {
                 *treeList = tree;
             }
         }
@@ -724,7 +702,7 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, vbtree_t *tree)
     if (error) {
         return error;
     }
-    tck->cptr = tree->pool_range.capPtr;
+    tck->cptr = tree->frames_cptr_base;
     tck->next = NULL;
     tck->prev = NULL;
     tck->tptr = tree;
@@ -802,6 +780,8 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
             allocman_utspace_free(alloc, cookie, 22);
             return error;
         }
+        memset(ptr_tree, 0, sizeof(vbtree_t));
+
         /* create space for the newly created capabilities */
         error = allocman_cspace_csa(alloc, &des_slot, 10);
         if (error) {
@@ -834,7 +814,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
     vbtspacepath_t blk = {0, 0};
     
     vbt_tree_query_blk(ptr_tree, size_bits, &blk, ALLOCMAN_NO_PADDR);
-    slot = vbt_tree_acq_cap_idx(ptr_tree, &blk) + ptr_tree->pool_range.capPtr;    
+    slot = vbt_tree_acq_cap_idx(ptr_tree, &blk) + ptr_tree->frames_cptr_base;    
     vbt_tree_release_blk_from_vbt_tree(ptr_tree, &blk);
 
     if (ptr_tree->blk_cur_size != curr_blk_size) {
@@ -876,7 +856,7 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
 
     vbtree_t *target = tck->tptr;
     size_t blk_cur_size = target->blk_cur_size;
-    size_t global = cptr - target->pool_range.capPtr;
+    size_t global = cptr - target->frames_cptr_base;
     vbtspacepath_t blk = {
         32 + global / 32,
         32 + global % 32

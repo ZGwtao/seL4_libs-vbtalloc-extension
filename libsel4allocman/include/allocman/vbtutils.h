@@ -30,9 +30,7 @@ struct vbt_bitmap {
 typedef struct vbt_tree {
     uintptr_t       paddr;
     vbtspacepath_t  entry;
-    cspacepath_t    origin;
-    cspacepath_t    pool_range;
-    size_t          blk_max_size;
+    seL4_CPtr       frames_cptr_base;
     size_t          blk_cur_size;
     struct vbt_tree *next, *prev;
     struct vbt_bitmap top_tree;
