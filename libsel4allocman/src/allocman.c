@@ -505,14 +505,12 @@ void vbt_tree_restore_blk_from_bitmap(void *_bitmap, int index) {
 void vbt_tree_release_blk_from_bitmap(void *_bitmap, int index) {
     struct vbt_bitmap *bitmap = (struct vbt_bitmap*)_bitmap;
     int idx = index >> 1;
-    uint64_t dtc = VBT_INDEX_BIT(idx);
     while(idx) {
-        if (!VBT_AND(dtc, bitmap->tnode[0])) {
+        if (!((bitmap->tnode[0] >> (BITMAP_SIZE - 1 - idx)) & 1)) {
             break;
         }
-        bitmap->tnode[0] -= dtc;
+        bitmap->tnode[0] &= ~(1ULL << (BITMAP_SIZE - 1 - idx));
         idx >>= 1;
-        dtc = VBT_INDEX_BIT(idx);
     }
     bitmap->tnode[0] &= ~vbt_tree_sub_add_up(index);
     bitmap->tnode[0] &= ~(VBT_INDEX_BIT(index));
