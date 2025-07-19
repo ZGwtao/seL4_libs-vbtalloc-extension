@@ -48,7 +48,7 @@ typedef struct tcookie {
 
 struct vbt_forrest {
     struct vbt_tree *mem_treeList[11];
-    struct vbt_tree *empty;
+    //struct vbt_tree *empty;
     tcookie_t *tcookieList;
 };
 

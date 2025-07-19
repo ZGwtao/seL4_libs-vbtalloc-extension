@@ -714,29 +714,15 @@ int vbt_tree_acquire_multiple_frame_from_pool(struct vbt_forrest *pool, size_t r
         return 0;
     }
 
-    if (pool->empty) {
-        struct vbt_tree *scanner = pool->empty;
-        for (; scanner->next; scanner = scanner->next);
-        if (tree->prev) {
-            tree->prev->next = tree->next;
-        }
-        if (tree->next) {
-            tree->next->prev = tree->prev;
-        }
-        scanner->next = tree;
-        tree->prev = scanner;
-        tree->next = NULL;
-    } else {
-        pool->empty = tree;
-        if (tree->next) {
-            tree->next->prev = tree->prev;
-        }
-        if (tree->prev) {
-            tree->prev->next = tree->next;
-        }
-        tree->next = NULL;
-        tree->prev = NULL;
+    if (tree->prev) {
+        tree->prev->next = tree->next;
     }
+    if (tree->next) {
+        tree->next->prev = tree->prev;
+    }
+    tree->prev = NULL;
+    tree->next = NULL;
+
     return 0;
 }
 
@@ -903,25 +889,6 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
         assert(blk_cur_size <= 22);
         if (blk_cur_size) {
             vbt_tree_list_remove(&alloc->frame_pool.mem_treeList[blk_cur_size - 12], target);
-        } else {
-            struct vbt_tree *scanner = alloc->frame_pool.empty;
-            for (; scanner->next && scanner != target; scanner = scanner->next);
-            if (scanner == target) {
-                if (scanner->prev) {
-                    scanner->prev->next = scanner->next;
-                }
-                if (scanner->next) {
-                    scanner->next->prev = scanner->prev;
-                }
-                if (target == alloc->frame_pool.empty) {
-                    alloc->frame_pool.empty = target->next;
-                }
-                scanner->next = NULL;
-                scanner->prev = NULL;
-            } else {
-                ZF_LOGE("Internal allocman error: unmatched tree pointer");
-                assert(0);
-            }
         }
         vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[target->blk_cur_size - 12], target);
     }
