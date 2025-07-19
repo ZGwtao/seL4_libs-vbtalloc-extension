@@ -443,17 +443,24 @@ void vbt_tree_query_blk(struct vbt_tree *tree, size_t real_size, vbtspacepath_t 
         if (avail < base * 2) {
             res->toplevel = avail;
         }
-    } else {
-        for (int i = 32; i < 64 && !(res->sublevel); ++i) {
-            if (VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
-                subl = &tree->sub_trees[BITMAP_SUB_OFFSET(i)];
-                int base = VBT_SUBLEVEL_INDEX(size_bits);
-                int avail = CLZL(MASK((BITMAP_SIZE) - base) & (subl->tnode[0]));
-                if (avail < base * 2) {
-                    res->toplevel = i;
-                    res->sublevel = avail;
-                }
-            }
+        return;
+    }
+
+    size_t map_l1;
+    size_t avail_index;
+
+    map_l1 = topl->tnode[0];
+    /* replace for loop with FFSL -> O(n) loop with O(logn) */
+    while (!res->sublevel) {
+        avail_index = 64 - FFSL(map_l1);
+        subl = &tree->sub_trees[BITMAP_SUB_OFFSET(avail_index)];
+        int base = VBT_SUBLEVEL_INDEX(size_bits);
+        int avail = CLZL(MASK((BITMAP_SIZE) - base) & (subl->tnode[0]));
+        if (avail < base * 2) {
+            res->toplevel = avail_index;
+            res->sublevel = avail;
+        } else {
+            map_l1 &= ~(1ULL << (FFSL(map_l1) - 1));
         }
     }
 }
