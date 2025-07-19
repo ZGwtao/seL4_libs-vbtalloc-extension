@@ -556,14 +556,12 @@ void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
         subl = &tree->sub_trees[BITMAP_SUB_OFFSET(path->toplevel)];
         vbt_tree_release_blk_from_bitmap(subl, path->sublevel);
         int idx = path->toplevel;
-        uint64_t dtc = VBT_INDEX_BIT(idx);
         while(idx) {
-            if (!VBT_AND(dtc, topl->tnode[0])) {
+            if (!((topl->tnode[0] >> (BITMAP_SIZE - 1 - idx)) & 1)) {
                 break;
             }
-            topl->tnode[0] -= dtc;
+            topl->tnode[0] &= ~(1ULL << (BITMAP_SIZE - 1 - idx));
             idx >>= 1;
-            dtc = VBT_INDEX_BIT(idx);
         }
         if (subl->tnode[0] != 0) {
             topl->tnode[0] += (VBT_INDEX_BIT(path->toplevel));
