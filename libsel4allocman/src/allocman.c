@@ -374,13 +374,13 @@ void vbt_tree_init(struct allocman *alloc, vbtree_t *tree, uintptr_t paddr,
     }
 }
 
-void vbt_tree_query_blk(vbtree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr)
+void vbt_tree_query_blk(vbtree_t *tree, size_t size_bits, vbtspacepath_t *res, uintptr_t paddr)
 {
     res->sublevel = 0;
     res->toplevel = 0;
     struct vbt_bitmap *subl = NULL;
     struct vbt_bitmap *topl = &tree->top_tree;
-    size_t size_bits = real_size - VBT_PAGE_GRAIN;
+    size_t real_size = size_bits + seL4_PageBits;
     size_t blk_size = BIT(real_size);
     bool query_level = size_bits > BITMAP_LEVEL;
 
@@ -662,9 +662,8 @@ void vbt_tree_list_remove(vbtree_t **treeList, vbtree_t *tree)
     return;
 }
 
-static vbtree_t *capbuddy_query_avail_vbt(struct vbt_forrest *pool, size_t real_size)
+static vbtree_t *capbuddy_query_avail_vbt(struct vbt_forrest *pool, size_t size_bits)
 {
-    size_t size_bits = real_size - seL4_PageBits;
     vbtree_t *tree = pool->mem_treeList[size_bits];
     for (size_t i = size_bits + 1; !tree && i < 11; ++i) {
         tree = pool->mem_treeList[i];
@@ -739,7 +738,7 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, vbtree_t *tree)
     return 0;
 }
 
-int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t size_bits,
+int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t real_size,
                                          uintptr_t paddr, bool canBeDev, cspacepath_t *res)
 {
     int error;
@@ -748,6 +747,8 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
     }
     /* dest slot for the starting cptr */
     seL4_CPtr slot;
+    /* relative size */
+    size_t size_bits = real_size - seL4_PageBits;
 
     vbtree_t *ptr_tree;
     ptr_tree = capbuddy_query_avail_vbt(&alloc->frame_pool, size_bits);
@@ -837,8 +838,8 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
     *res = allocman_cspace_make_path(alloc, slot);
 
     /* several pages retrieved */
-    if (size_bits != seL4_PageBits)
-        res->window = BIT(size_bits - seL4_PageBits);
+    if (size_bits)
+        res->window = BIT(size_bits);
 
     return 0;
 }
