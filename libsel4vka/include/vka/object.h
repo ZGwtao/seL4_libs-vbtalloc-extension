@@ -155,15 +155,13 @@ static inline void vka_free_arch_object(vka_t *vka, vka_object_t *object)
 
 static inline void vka_free_object(vka_t *vka, vka_object_t *object)
 {
-    if (object->type == kobject_get_type(KOBJECT_FRAME, 12)) {
-        if (object->size_bits > 12) {
-            int frame_num = object->size_bits - 12;
+    if (object->type == kobject_get_type(KOBJECT_FRAME, seL4_PageBits)) {
+        size_t frame_num = object->size_bits - seL4_PageBits;
+        if (frame_num) {
             if (vka_cspace_is_from_pool(vka, object->cptr, frame_num)) {
-                seL4_CPtr frame_start = object->cptr;
-                assert(vka_cspace_is_from_pool(vka, frame_start, frame_num));
-                vka_utspace_try_free_from_pool(vka, frame_start, frame_num);
+                vka_utspace_try_free_from_pool(vka, object->cptr, frame_num);
             } else {
-                assert(0);
+                ZF_LOGE("Failed to free external capability from capbuddy");
             }
         } else {
             vka_free_arch_object(vka, object);
