@@ -443,7 +443,7 @@ void vbt_tree_query_blk(vbtree_t *tree, size_t size_bits, vbtspacepath_t *res, u
     }
 }
 
-seL4_CPtr vbt_tree_acq_cap_idx(vbtree_t *tree, const vbtspacepath_t *path)
+seL4_CPtr vbt_tree_acq_cap_idx(const vbtspacepath_t *path)
 {
     if (path->sublevel == 0) {
         size_t clzl     = CLZL(path->toplevel);
@@ -813,7 +813,6 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
     vbtspacepath_t blk = {0, 0};
     
     vbt_tree_query_blk(ptr_tree, size_bits, &blk, ALLOCMAN_NO_PADDR);
-    slot = vbt_tree_acq_cap_idx(ptr_tree, &blk) + ptr_tree->frames_cptr_base;    
     vbt_tree_release_blk_from_vbt_tree(ptr_tree, &blk);
 
     if (ptr_tree->blk_cur_size != curr_blk_size) {
@@ -832,7 +831,9 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
             ptr_tree->next = NULL;
         }
     }
+
     /* make path for the starting cptr */
+    slot = vbt_tree_acq_cap_idx(&blk) + ptr_tree->frames_cptr_base;    
     *res = allocman_cspace_make_path(alloc, slot);
 
     /* several pages retrieved */
