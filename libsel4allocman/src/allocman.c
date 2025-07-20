@@ -446,15 +446,13 @@ void vbt_tree_query_blk(vbtree_t *tree, size_t size_bits, vbtspacepath_t *res, u
 seL4_CPtr vbt_tree_acq_cap_idx(vbtree_t *tree, const vbtspacepath_t *path)
 {
     if (path->sublevel == 0) {
-        int lv_size = BITMAP_DEPTH - BITMAP_GET_LEVEL(path->toplevel) + BITMAP_LEVEL;
-        int lv_base = BIT(BITMAP_GET_LEVEL(path->toplevel)-1);
-        int lv_offs = path->toplevel - lv_base;
-        return lv_offs * BIT(lv_size);
+        size_t clzl     = CLZL(path->toplevel);
+        size_t lv_offs  = path->toplevel - BIT(63 - clzl);
+        return lv_offs << (clzl - 53);
     } else {
-        int lv_size = BITMAP_DEPTH - BITMAP_GET_LEVEL(path->sublevel);
-        int lv_base = BIT(BITMAP_GET_LEVEL(path->sublevel)-1);
-        int lv_offs = path->sublevel - lv_base;
-        return lv_offs * BIT(lv_size) + (path->toplevel - 32) * 32;
+        size_t clzl     = CLZL(path->sublevel);
+        size_t lv_offs  = path->sublevel - BIT(63 - clzl);
+        return (lv_offs << (clzl - 58)) + ((path->toplevel - 32) << 5);
     }
 }
 
