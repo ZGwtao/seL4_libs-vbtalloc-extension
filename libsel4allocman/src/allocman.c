@@ -558,9 +558,8 @@ void vbt_tree_blk_query_release(vbtree_t *tree, size_t size_bits, int *top, int 
     struct vbt_bitmap *topl = &tree->top_tree;
     size_t real_size = size_bits + seL4_PageBits;
     size_t blk_size = BIT(real_size);
-    bool query_level = size_bits > BITMAP_LEVEL;
 
-    if (query_level) {
+    if (size_bits > BITMAP_LEVEL) {
         int base = VBT_TOPLEVEL_INDEX(size_bits);
         int avail = CLZL(MASK((BITMAP_SIZE) - base) & (topl->tnode[0]));
 
@@ -609,7 +608,28 @@ void vbt_tree_blk_query_release(vbtree_t *tree, size_t size_bits, int *top, int 
         *top = avail_index;
         *sub = sub_level;
     }
-    vbt_tree_update_avail_size(tree);
+
+    int tx;
+    int ux = 64;
+    int curr_index = CLZL(topl->tnode[0]);
+    if (curr_index >= 32) {
+        /* top level bitmap */
+        size_t map_l1 = topl->tnode[0];
+        while (map_l1) {
+            curr_index = 64 - FFSL(map_l1);
+            if (curr_index < 32) break;
+            tx = CLZL(tree->sub_trees[BITMAP_SUB_OFFSET(curr_index)].tnode[0]);
+            ux = tx < ux ? tx: ux;
+            if (ux == 1) break;
+            map_l1 &= ~(1ULL << (FFSL(map_l1) - 1));
+        }
+        tree->blk_cur_size = (BITMAP_DEPTH) - BITMAP_GET_LEVEL(ux) + (VBT_PAGE_GRAIN);
+    } else {
+        tree->blk_cur_size = ((BITMAP_DEPTH) - BITMAP_GET_LEVEL(curr_index)) + ((BITMAP_LEVEL) + (VBT_PAGE_GRAIN));
+    }
+    if (tree->blk_cur_size <= 12) {
+        tree->blk_cur_size = 0;
+    }
 }
 
 void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path) {
