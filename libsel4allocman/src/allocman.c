@@ -926,7 +926,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
     return 0;
 }
 
-void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
+void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size_t num_bits)
 {
     assert(alloc->frame_pool.tcookieList);
     
@@ -934,22 +934,33 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr)
     
     for (; tck && cptr > (tck->cptr + 1023); tck = tck->next);
 
-    assert(cptr >= tck->cptr);
-    assert(cptr < tck->cptr + 1024);
-
     vbtree_t *target = tck->tptr;
+
     size_t blk_cur_size = target->blk_cur_size;
     size_t global = cptr - target->frames_cptr_base;
-    vbtspacepath_t blk = {
-        32 + global / 32,
-        32 + global % 32
-    };
+
+    vbtspacepath_t blk;
+
+    if (num_bits > 10) {
+        ZF_LOGE("huge block unimplemented yet");
+        return;
+    } else if (num_bits > BITMAP_LEVEL) {
+        blk.toplevel = VBT_TOPLEVEL_INDEX(num_bits) + global / (1ULL << num_bits);
+        blk.sublevel = 0;
+    } else {
+        /* offset within the level 2 bitmap */
+        size_t offset_l2;
+        /* from within l2, the calculation is the same to l1 */
+        offset_l2 = global % 32;
+        /* base: 32, because all l2 bitmap bits are between 32 and 63 */
+        blk.toplevel = 32 + global / 32;
+        /* base: depends on the block size */
+        blk.sublevel = VBT_SUBLEVEL_INDEX(num_bits) + offset_l2 / (1ULL << num_bits);
+    }
 
     vbt_tree_restore_blk_from_vbt_tree(target, &blk);
 
     if (blk_cur_size != target->blk_cur_size) {
-        assert(blk_cur_size < target->blk_cur_size);
-        assert(blk_cur_size <= 22);
         if (blk_cur_size) {
             vbt_tree_list_remove(&alloc->frame_pool.mem_treeList[blk_cur_size - 12], target);
         }
