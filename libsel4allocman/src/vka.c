@@ -249,11 +249,11 @@ static void am_vka_utspace_try_free_from_pool(void *data, seL4_CPtr cptr, size_t
     allocman_utspace_try_free_from_pool((allocman_t *)data, cptr, num_bits);
 }
 
-static int am_vka_cspace_is_from_pool(void *data, seL4_CPtr cptr)
+static int am_vka_cspace_is_from_pool(void *data, seL4_CPtr cptr, size_t num_bits)
 {
     assert(data);
 
-    return allocman_cspace_is_from_pool((allocman_t *)data, cptr);
+    return allocman_cspace_is_from_pool((allocman_t *)data, cptr, num_bits);
 }
 
 #endif

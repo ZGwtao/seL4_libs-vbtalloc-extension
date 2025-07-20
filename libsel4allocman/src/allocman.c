@@ -968,13 +968,13 @@ void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size
     }
 }
 
-int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr)
+int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr, size_t num_bits)
 {
     int res;
     assert(alloc->have_cspace);
     int root = _start_operation(alloc);
     alloc->cspace_free_depth++;
-    res = alloc->cspace.pool(alloc, alloc->cspace.cspace, cptr);
+    res = alloc->cspace.pool(alloc, alloc->cspace.cspace, cptr, num_bits);
     alloc->cspace_free_depth--;
     _end_operation(alloc, root);
     return res;

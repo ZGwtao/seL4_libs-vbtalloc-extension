@@ -126,7 +126,7 @@ static inline seL4_CPtr vka_alloc_object_leaky(vka_t *vka, seL4_Word type, seL4_
 
 static inline void vka_free_capability(vka_t *vka, seL4_CPtr cptr)
 {
-    if (vka_cspace_is_from_pool(vka, cptr)) {
+    if (vka_cspace_is_from_pool(vka, cptr, 0)) {
         /**
          * Do nothing because pre-allocated objects in pool
          * should not be freed. Like pre-allocated frames,
@@ -157,13 +157,11 @@ static inline void vka_free_object(vka_t *vka, vka_object_t *object)
 {
     if (object->type == kobject_get_type(KOBJECT_FRAME, 12)) {
         if (object->size_bits > 12) {
-            int frame_num = BIT(object->size_bits - 12);
-            if (vka_cspace_is_from_pool(vka, object->cptr)) {
+            int frame_num = object->size_bits - 12;
+            if (vka_cspace_is_from_pool(vka, object->cptr, frame_num)) {
                 seL4_CPtr frame_start = object->cptr;
-                for (int i = 0; i < frame_num; ++i) {
-                    assert(vka_cspace_is_from_pool(vka, frame_start + i));
-                }
-                vka_utspace_try_free_from_pool(vka, frame_start, object->size_bits - seL4_PageBits);
+                assert(vka_cspace_is_from_pool(vka, frame_start, frame_num));
+                vka_utspace_try_free_from_pool(vka, frame_start, frame_num);
             } else {
                 assert(0);
             }

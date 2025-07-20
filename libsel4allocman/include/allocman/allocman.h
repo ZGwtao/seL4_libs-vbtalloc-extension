@@ -276,7 +276,7 @@ void allocman_utspace_free(allocman_t *alloc, seL4_Word cookie, size_t size_bits
 int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, seL4_Word size_bits,
                                          uintptr_t paddr, bool canBeDev, cspacepath_t *res);
 void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size_t num_bits);
-int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr);
+int allocman_cspace_is_from_pool(allocman_t *alloc, seL4_CPtr cptr, size_t num_bits);
 
 #endif
 
