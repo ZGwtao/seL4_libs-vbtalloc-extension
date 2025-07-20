@@ -135,7 +135,7 @@ static inline void vka_free_capability(vka_t *vka, seL4_CPtr cptr)
          * and the frame object acts like a container then should
          * not be freed because of future potential reuse.
          */
-        vka_utspace_try_free_from_pool(vka, cptr);
+        vka_utspace_try_free_from_pool(vka, cptr, 0);
         return;
     }
     cspacepath_t path;
@@ -162,8 +162,8 @@ static inline void vka_free_object(vka_t *vka, vka_object_t *object)
                 seL4_CPtr frame_start = object->cptr;
                 for (int i = 0; i < frame_num; ++i) {
                     assert(vka_cspace_is_from_pool(vka, frame_start + i));
-                    vka_utspace_try_free_from_pool(vka, frame_start + i);
                 }
+                vka_utspace_try_free_from_pool(vka, frame_start, object->size_bits - seL4_PageBits);
             } else {
                 assert(0);
             }

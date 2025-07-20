@@ -243,10 +243,10 @@ static int am_vka_utspace_try_alloc_from_pool(void *data, seL4_Word type, seL4_W
     return -1;
 }
 
-static void am_vka_utspace_try_free_from_pool(void *data, seL4_CPtr cptr)
+static void am_vka_utspace_try_free_from_pool(void *data, seL4_CPtr cptr, size_t num_bits)
 {
     assert(data);
-    allocman_utspace_try_free_from_pool((allocman_t *)data, cptr, 0);
+    allocman_utspace_try_free_from_pool((allocman_t *)data, cptr, num_bits);
 }
 
 static int am_vka_cspace_is_from_pool(void *data, seL4_CPtr cptr)
