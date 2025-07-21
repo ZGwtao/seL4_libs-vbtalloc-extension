@@ -37,16 +37,9 @@ typedef struct vbt_tree {
     struct vbt_bitmap sub_trees[32];
 } vbtree_t;
 
-typedef struct tcookie {
-    seL4_CPtr cptr;
-    vbtree_t *tptr;
-    struct tcookie *prev;
-    struct tcookie *next;
-} tcookie_t;
-
 struct vbt_forrest {
     vbtree_t *mem_treeList[11];
-    tcookie_t *tcookieList;
+    vbtree_t *vbtree_cookie_map[BIT(CONFIG_ROOT_CNODE_SIZE_BITS)];
 };
 
 typedef struct vbt_forrest vbt_pool_t;

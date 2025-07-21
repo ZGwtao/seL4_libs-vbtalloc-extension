@@ -774,46 +774,20 @@ int allocman_cspace_csa(allocman_t *alloc, cspacepath_t *slots, size_t num_bits)
 
 static int _allocman_utspace_append_tcookie(allocman_t *alloc, vbtree_t *tree)
 {
-    int error;
-
-    tcookie_t *tck = allocman_mspace_alloc(alloc, sizeof(tcookie_t), &error);
-    if (error) {
-        return error;
+    vbtree_t **cookie_map = alloc->frame_pool.vbtree_cookie_map;
+    if (!cookie_map) {
+        ZF_LOGE("Initialise cookie map first!");
+        return -1;
     }
-    tck->cptr = tree->frames_cptr_base;
-    tck->next = NULL;
-    tck->prev = NULL;
-    tck->tptr = tree;
-
-    tcookie_t *curr = alloc->frame_pool.tcookieList;
-    tcookie_t *head = alloc->frame_pool.tcookieList;
-
-    if (!head) {
-        alloc->frame_pool.tcookieList = tck;
-        return 0;
+    if (!tree) {
+        ZF_LOGE("Initialise tree to insert into cookie map first!");
+        return -1;
     }
-
-    for (; curr && curr->next && curr->next->cptr < tck->cptr; curr = curr->next);
-
-    if (curr->cptr < tck->cptr) {
-        tck->prev = curr;
-        if (curr->next) {
-            tck->next = curr->next;
-            curr->next->prev = tck;
-        }
-        curr->next = tck;
-    } else {
-        assert(curr->cptr > tck->cptr);
-        tck->next = curr;
-        if (curr->prev) {
-            tck->prev = curr->prev;
-            curr->prev->next = tck;
-        }
-        curr->prev = tck;
-        if (head->cptr > tck->cptr) {
-            alloc->frame_pool.tcookieList = tck;
-        }
+    if (cookie_map[tree->frames_cptr_base / 1024]) {
+        ZF_LOGE("Duplicated cookie starting at cptr %lu", tree->frames_cptr_base);
+        return -1;
     }
+    cookie_map[tree->frames_cptr_base / 1024] = tree;
     return 0;
 }
 
@@ -928,13 +902,43 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size
 
 void allocman_utspace_try_free_from_pool(allocman_t *alloc, seL4_CPtr cptr, size_t num_bits)
 {
-    assert(alloc->frame_pool.tcookieList);
-    
-    tcookie_t *tck = alloc->frame_pool.tcookieList;
-    
-    for (; tck && cptr > (tck->cptr + 1023); tck = tck->next);
+    int found;
+    vbtree_t *target;
+    vbtree_t **cookie_map;
+    size_t cookie_index;
 
-    vbtree_t *target = tck->tptr;
+    found = 0;
+    target = NULL;
+    cookie_index = cptr / 1024;
+    cookie_map = alloc->frame_pool.vbtree_cookie_map;
+
+    if (cookie_map[cookie_index]) {
+        if (cookie_map[cookie_index]->frames_cptr_base <= cptr &&
+            cptr < 1024 + cookie_map[cookie_index]->frames_cptr_base) {
+                found = 1;
+                target = cookie_map[cookie_index];
+            }
+    }
+    if (!found) {
+        if (cookie_index > 0) {
+            if (cookie_map[cookie_index - 1]) {
+                if (cookie_map[cookie_index - 1]->frames_cptr_base <= cptr &&
+                    cptr < 1024 + cookie_map[cookie_index - 1]->frames_cptr_base) {
+                        found = 1;
+                        target = cookie_map[cookie_index - 1];
+                    }
+            }
+        }
+    }
+    if (!found) {
+        if (cookie_map[cookie_index + 1]) {
+            if (cookie_map[cookie_index + 1]->frames_cptr_base <= cptr &&
+                cptr < 1024 + cookie_map[cookie_index + 1]->frames_cptr_base) {
+                    target = cookie_map[cookie_index + 1];
+                }
+        }
+    }
+    assert(target);
 
     size_t blk_cur_size = target->blk_cur_size;
     size_t global = cptr - target->frames_cptr_base;
