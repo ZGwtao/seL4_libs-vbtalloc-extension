@@ -791,7 +791,7 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, vbtree_t *tree)
     return 0;
 }
 
-int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, seL4_Word type, size_t real_size,
+int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t real_size,
                                          uintptr_t paddr, bool canBeDev, cspacepath_t *res)
 {
     int error;
