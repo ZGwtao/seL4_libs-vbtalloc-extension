@@ -333,14 +333,27 @@ static inline int vbt_tree_window_at_level(int target_layer, int index) {
 
 static uint64_t vbt_tree_sub_add_up(int index)
 {
-    uint64_t dtc = 0;
-    int level = BITMAP_GET_LEVEL(index);
-    for (int i = level + 1; i <= BITMAP_DEPTH; ++i) {
-        for (int j = 0, r = 1ul<<(i-level); j < r; ++j) {
-            dtc += VBT_INDEX_BIT(index * r + j);
+    switch(index) {
+        case 1:
+        /* 0x7fffffffffffffff */
+            return 0x3fffffffffffffff;
+        case 2:
+        /* 0x2cf0ff00ffff0000 */
+            return 0x0cf0ff00ffff0000;
+        case 3:
+        /* 0x130f00ff0000ffff */
+            return 0x030f00ff0000ffff;
+        default: {
+            uint64_t dtc = 0;
+            int level = BITMAP_GET_LEVEL(index);
+            for (int i = level + 1; i <= BITMAP_DEPTH; ++i) {
+                for (int j = 0, r = 1ul<<(i-level); j < r; ++j) {
+                    dtc += VBT_INDEX_BIT(index * r + j);
+                }
+            }
+            return dtc;
         }
-    }
-    return dtc;
+    };
 }
 
 void vbt_tree_init(struct allocman *alloc, vbtree_t *tree, uintptr_t paddr,
