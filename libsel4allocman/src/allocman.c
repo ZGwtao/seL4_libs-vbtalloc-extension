@@ -321,7 +321,6 @@ seL4_Word allocman_utspace_alloc_at(allocman_t *alloc, size_t size_bits, seL4_Wo
 
 #ifdef CONFIG_LIB_ALLOCMAN_ALLOW_POOL_OPERATIONS
 
-void vbt_tree_init(struct allocman *alloc, vbtree_t *tree, uintptr_t paddr, seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size);
 void vbt_tree_query_blk(vbtree_t *tree, size_t real_size, vbtspacepath_t *res, uintptr_t paddr);
 void vbt_tree_release_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path);
 void vbt_tree_list_insert(vbtree_t **treeList, vbtree_t *tree);
@@ -345,32 +344,31 @@ static uint64_t vbt_tree_sub_add_up(int index)
 }
 
 void vbt_tree_init(struct allocman *alloc, vbtree_t *tree, uintptr_t paddr,
-                   seL4_CPtr origin, cspacepath_t dest_reg, size_t real_size)
+                   seL4_CPtr origin, cspacepath_t dest_reg)
 {
     tree->paddr = paddr;
     tree->frames_cptr_base = dest_reg.capPtr;
-    tree->blk_cur_size = real_size;
+    tree->blk_cur_size = 22;
 
-    size_t size_bits = real_size - seL4_PageBits;
+    tree->entry.toplevel = 1;
+    tree->entry.sublevel = 0;
 
-    if (size_bits < BITMAP_LEVEL) {
-        tree->entry.toplevel = 32;
-        tree->entry.sublevel = VBT_SUBLEVEL_INDEX(size_bits);
-        tree->top_tree.tnode[0] |= VBT_INDEX_BIT(32);
-        tree->sub_trees[0].tnode[0] |= VBT_INDEX_BIT(tree->entry.sublevel);
-        tree->sub_trees[0].tnode[0] |= vbt_tree_sub_add_up(tree->entry.sublevel);
-        return;
-    }
-    tree->entry.toplevel = VBT_TOPLEVEL_INDEX(size_bits);
-    tree->top_tree.tnode[0] |= VBT_INDEX_BIT(tree->entry.toplevel);
-    tree->top_tree.tnode[0] |= vbt_tree_sub_add_up(tree->entry.toplevel);
-    int window = vbt_tree_window_at_level(BITMAP_DEPTH, tree->entry.toplevel);
-    int idx = BITMAP_SUB_OFFSET(window * tree->entry.toplevel);
-    for (int i = idx; i < idx + window; ++i) {
-        if (VBT_AND(tree->top_tree.tnode[0], VBT_INDEX_BIT(i))) {
-            tree->sub_trees[i].tnode[0] = (uint64_t)-1;
-            tree->sub_trees[i].tnode[0] &= MASK(63);
-        }
+    tree->top_tree.tnode[0] = 0x7fffffffffffffff;
+    /***
+     * There are at most 32 sub-level bitmaps to record the
+     * status of all of the virtual memory regions with their
+     * sizes smaller than 256k
+     * 
+     * In one bitmap:
+     *  [0] -> reserved
+     *  [1] -> 128k, [2~3] -> 64k, [4~7] -> 32k, [8~15] -> 16k
+     *  [16~31] -> 8k, [32~63] -> 4k
+     */
+    for (int i = 0; i < 32; ++i) {
+        /***
+         * Initialize <=128k virtual memory regions' status
+         */
+        tree->sub_trees[i].tnode[0] = 0x7fffffffffffffff;
     }
 }
 
@@ -853,7 +851,7 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t real_size,
             return error;
         }
 
-        vbt_tree_init(alloc, ptr_tree, paddr, src_slot.capPtr, des_slot, 22);
+        vbt_tree_init(alloc, ptr_tree, paddr, src_slot.capPtr, des_slot);
         vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[10], ptr_tree);
 
         /* for retrieving the dest tree to free a frame with cptr */
