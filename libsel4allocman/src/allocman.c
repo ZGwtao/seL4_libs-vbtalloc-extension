@@ -571,19 +571,78 @@ void vbt_tree_blk_query_release(vbtree_t *tree, size_t size_bits, int *top, int 
     size_t blk_size = BIT(real_size);
 
     if (size_bits > BITMAP_LEVEL) {
-        int base = VBT_TOPLEVEL_INDEX(size_bits);
-        int avail = CLZL(MASK((BITMAP_SIZE) - base) & (topl->tnode[0]));
-
-        vbt_tree_release_blk_from_bitmap(topl, avail);
-        int window = vbt_tree_window_at_level(BITMAP_DEPTH, avail);
-        int sti = BITMAP_SUB_OFFSET(window * avail);
-        for (int i = sti; i < sti + window; ++i) {
-            if (!VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
-                tree->sub_trees[i].tnode[0] = 0ul;
+        if (size_bits == 10) {
+            /* 4M fastpath */
+            assert(topl->tnode[0] == 0x7fffffffffffffff);
+            //for (int i = 0; i < 32; ++i) {
+            //    tree->sub_trees[i].tnode[0] = 0x0;
+            //}
+            memset(tree->sub_trees, 0, 32 * sizeof(struct vbt_bitmap));
+            topl->tnode[0] = 0x0;
+            *top = 1;
+            *sub = 0;
+            tree->blk_cur_size = 0;
+            return;
+#if 0
+        } else if (size_bits == 9) {
+            /* 2M fastpath */
+            assert(topl->tnode[0] & 0x2cf0ff00ffff0000 ||
+                   topl->tnode[0] & 0x130f00ff0000ffff);
+            if (topl->tnode[0] & 0x2cf0ff00ffff0000) {
+                for (int i = 0; i < 16; ++i) {
+                    tree->sub_trees[i].tnode[0] = 0x0;
+                }
+                topl->tnode[0] &= ~0x2cf0ff00ffff0000;
+            } else {
+                for (int i = 16; i < 32; ++i) {
+                    tree->sub_trees[i].tnode[0] = 0x0;
+                }
+                topl->tnode[0] &= ~0x130f00ff0000ffff;
             }
+        } else if (size_bits == 8) {
+            /* 2M fastpath */
+            assert(topl->tnode[0] & 0x08c0f000ff000000 ||
+                   topl->tnode[0] & 0x08c00f0000ff0000 ||
+                   topl->tnode[0] & 0x010300f00000ff00 ||
+                   topl->tnode[0] & 0x0103000f000000ff);
+            if (topl->tnode[0] & 0x08c0f000ff000000) {
+                for (int i = 0; i < 8; ++i) {
+                    tree->sub_trees[i].tnode[0] = 0x0;
+                }
+                topl->tnode[0] &= ~0x08c0f000ff000000;
+            } else if (topl->tnode[0] & 0x08c00f0000ff0000) {
+                for (int i = 8; i < 16; ++i) {
+                    tree->sub_trees[i].tnode[0] = 0x0;
+                }
+                topl->tnode[0] &= ~0x08c00f0000ff0000;
+            } else if (topl->tnode[0] & 0x010300f00000ff00) {
+                for (int i = 16; i < 24; ++i) {
+                    tree->sub_trees[i].tnode[0] = 0x0;
+                }
+                topl->tnode[0] &= ~0x010300f00000ff00;
+            } else {
+                for (int i = 24; i < 32; ++i) {
+                    tree->sub_trees[i].tnode[0] = 0x0;
+                }
+                topl->tnode[0] &= ~0x0103000f000000ff;
+            }
+#endif
+        } else {
+            int base = VBT_TOPLEVEL_INDEX(size_bits);
+            int avail = CLZL(MASK((BITMAP_SIZE) - base) & (topl->tnode[0]));
+
+            vbt_tree_release_blk_from_bitmap(topl, avail);
+            int window = vbt_tree_window_at_level(BITMAP_DEPTH, avail);
+            int sti = BITMAP_SUB_OFFSET(window * avail);
+            memset(tree->sub_trees + sti, 0, window * sizeof(struct vbt_bitmap));
+            //for (int i = sti; i < sti + window; ++i) {
+            //    if (!VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
+            //      //tree->sub_trees[i].tnode[0] = 0ul;
+            //    }
+            //}
+            *top = avail;
+            *sub = 0x0;
         }
-        *top = avail;
-        *sub = 0x0;
     } else {
         size_t map_l1;
         size_t avail_index;
@@ -649,15 +708,22 @@ void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
     struct vbt_bitmap *subl = NULL;
 
     if (!path->sublevel) {
-        vbt_tree_restore_blk_from_bitmap(topl, path->toplevel);
-        int window = vbt_tree_window_at_level(BITMAP_DEPTH, path->toplevel);
-        int sti = BITMAP_SUB_OFFSET(window * path->toplevel);
-        for (int i = sti; i < sti + window; ++i) {
-            if (!VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
-                tree->sub_trees[i].tnode[0] = MASK(63) & (uint64_t)-1;
-            }
+        if (path->toplevel == 1) {
+            tree->blk_cur_size = 10 + seL4_PageBits;
+            memset(tree->sub_trees, -1, 32 * sizeof(struct vbt_bitmap));
+            tree->top_tree.tnode[0] = 0x7fffffffffffffff;
+        } else {
+            vbt_tree_restore_blk_from_bitmap(topl, path->toplevel);
+            int window = vbt_tree_window_at_level(BITMAP_DEPTH, path->toplevel);
+            int sti = BITMAP_SUB_OFFSET(window * path->toplevel);
+            memset(tree->sub_trees + sti, -1, window * sizeof(struct vbt_bitmap));
+            //for (int i = sti; i < sti + window; ++i) {
+            //    if (!VBT_AND(topl->tnode[0], VBT_INDEX_BIT(i))) {
+            //        tree->sub_trees[i].tnode[0] = MASK(63) & (uint64_t)-1;
+            //    }
+            //}
+            vbt_tree_update_avail_size(tree);
         }
-        vbt_tree_update_avail_size(tree);
         return;
     }
     
@@ -666,7 +732,7 @@ void vbt_tree_restore_blk_from_vbt_tree(void *_tree, const vbtspacepath_t *path)
     int sublv_tree_index = path->toplevel;
     int buddy_tree_index = sublv_tree_index % 2 ? sublv_tree_index - 1 : sublv_tree_index + 1;
     
-    if (subl->tnode[0] == MASK(63) &&
+    if (subl->tnode[0] == 0x7fffffffffffffff &&
         subl->tnode[0] == tree->sub_trees[BITMAP_SUB_OFFSET(buddy_tree_index)].tnode[0])
     {
         topl->tnode[0] |= (VBT_INDEX_BIT(sublv_tree_index));
@@ -805,6 +871,7 @@ static int _allocman_utspace_append_tcookie(allocman_t *alloc, vbtree_t *tree)
 int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t real_size,
                                          uintptr_t paddr, bool canBeDev, cspacepath_t *res)
 {
+    //if (res->capPtr == 0xABC) return 0;
     int error;
     if (!alloc->have_utspace) {
         return 1;
@@ -856,14 +923,27 @@ int allocman_utspace_try_alloc_from_pool(allocman_t *alloc, size_t real_size,
             allocman_mspace_free(alloc, ptr_tree, sizeof(vbtree_t));
             return error;
         }
-
+#if 1
         vka_object_t origin = {src_slot.capPtr, cookie, seL4_UntypedObject, 22};
         error = vka_untyped_retype(&origin, seL4_ARCH_4KPage, seL4_PageBits, BIT(10), &des_slot);
         if (error) {
             ZF_LOGE("[ERROR]: FAILED TO RETYPE CONTIGUOUS 4K PAGES.");
             return error;
         }
-
+#else
+        for (int i = 0; i < 1024; ++i) {
+            error = seL4_Untyped_Retype(
+                        src_slot.capPtr, seL4_ARCH_4KPage, seL4_PageBits,
+                        des_slot.root, des_slot.dest, des_slot.destDepth, des_slot.offset + i,
+                        1
+                    );
+            if (error) {
+                /* although in reality the essence is to keep linearity in cspace */
+                ZF_LOGE("Failed to create frames in discrete distribution");
+                return error;
+            }
+        }
+#endif
         vbt_tree_init(alloc, ptr_tree, paddr, src_slot.capPtr, des_slot);
         vbt_tree_list_insert(&alloc->frame_pool.mem_treeList[10], ptr_tree);
 
