@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-2-Clause
 #
 
-cmake_minimum_required(VERSION 3.7.2)
+cmake_minimum_required(VERSION 3.16.0)
 
 project(libsel4muslcsys C)
 
@@ -73,7 +73,7 @@ list(SORT deps)
 # TODO: This use to be calculated by the following line. Need to use a generator expression and generate
 # this into a header file at build time
 # MUSLC_HIGHEST_SYSCALL := $(shell cat $(STAGE_DIR)/include/bits/syscall.h | sed 's/^.*[^0-9]\([0-9]*\)$$/\1/' | sort -nr | head -1)
-set(HighestSyscall 400)
+set(HighestSyscall 452)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_XOPEN_SOURCE=700 -DMUSLC_HIGHEST_SYSCALL=${HighestSyscall}")
 

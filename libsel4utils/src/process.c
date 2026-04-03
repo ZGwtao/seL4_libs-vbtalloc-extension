@@ -267,12 +267,8 @@ int sel4utils_spawn_process(sel4utils_process_t *process, vka_t *vka, vspace_t *
 int sel4utils_spawn_process_v(sel4utils_process_t *process, vka_t *vka, vspace_t *vspace, int argc,
                               char *argv[], int resume)
 {
-    /* define an envp and auxp */
-    int error;
-    int envc = 0;
-    char *envp[] = {};
-
     uintptr_t initial_stack_pointer = (uintptr_t) process->thread.stack_top - sizeof(seL4_Word);
+    int error;
 
     /* Copy the elf headers */
     uintptr_t at_phdr;
@@ -307,7 +303,6 @@ int sel4utils_spawn_process_v(sel4utils_process_t *process, vka_t *vka, vspace_t
     seL4_UserContext context = {0};
 
     uintptr_t dest_argv[argc];
-    uintptr_t dest_envp[envc];
 
     /* write all the strings into the stack */
     /* Copy over the user arguments */
@@ -316,18 +311,11 @@ int sel4utils_spawn_process_v(sel4utils_process_t *process, vka_t *vka, vspace_t
         return -1;
     }
 
-    /* copy the environment */
-    error = sel4utils_stack_copy_args(vspace, &process->vspace, vka, envc, envp, dest_envp, &initial_stack_pointer);
-    if (error) {
-        return -1;
-    }
-
     /* we need to make sure the stack is aligned to a double word boundary after we push on everything else
      * below this point. First, work out how much we are going to push */
     size_t to_push = 5 * sizeof(seL4_Word) + /* constants */
                      sizeof(auxv[0]) * auxc + /* aux */
-                     sizeof(dest_argv) + /* args */
-                     sizeof(dest_envp); /* env */
+                     sizeof(dest_argv); /* args */
     uintptr_t hypothetical_stack_pointer = initial_stack_pointer - to_push;
     uintptr_t rounded_stack_pointer = ALIGN_DOWN(hypothetical_stack_pointer, STACK_CALL_ALIGNMENT);
     ptrdiff_t stack_rounding = hypothetical_stack_pointer - rounded_stack_pointer;
@@ -350,11 +338,6 @@ int sel4utils_spawn_process_v(sel4utils_process_t *process, vka_t *vka, vspace_t
     }
     /* Null terminate environment */
     error = sel4utils_stack_write_constant(vspace, &process->vspace, vka, 0, &initial_stack_pointer);
-    if (error) {
-        return -1;
-    }
-    /* write environment */
-    error = sel4utils_stack_write(vspace, &process->vspace, vka, dest_envp, sizeof(dest_envp), &initial_stack_pointer);
     if (error) {
         return -1;
     }
@@ -497,6 +480,7 @@ int sel4utils_configure_process_custom(sel4utils_process_t *process, vka_t *vka,
 {
     int error;
     sel4utils_alloc_data_t *data = NULL;
+    assert(process != NULL);
     memset(process, 0, sizeof(sel4utils_process_t));
     seL4_Word cspace_root_data = api_make_guard_skip_word(seL4_WordBits - config.one_level_cspace_size_bits);
 
@@ -556,6 +540,10 @@ int sel4utils_configure_process_custom(sel4utils_process_t *process, vka_t *vka,
         unsigned long size;
         unsigned long cpio_len = _cpio_archive_end - _cpio_archive;
         char const *file = cpio_get_file(_cpio_archive, cpio_len, config.image_name, &size);
+        if (file == NULL) {
+            ZF_LOGE("failed to load elf file: '%s' does not exist in CPIO", config.image_name);
+            goto error;
+        }
         elf_t elf;
         elf_newFile(file, size, &elf);
 
@@ -586,6 +574,21 @@ int sel4utils_configure_process_custom(sel4utils_process_t *process, vka_t *vka,
             goto error;
         }
         sel4utils_elf_read_phdrs(&elf, process->num_elf_phdrs, process->elf_phdrs);
+
+        /* If PT_PHDR exists in the program headers, assign PT_NULL to it.
+         * This is because muslc libc searches for PT_PHDR and if found,
+         * it assumes it's part of the ELF image and relocates the entire
+         * subsequent program header segments according to PT_PHDR's base. This is
+         * wrong and will trigger mapping errors.
+         */
+        Elf_Phdr *phdr = process->elf_phdrs;
+
+        for (int i = 0; i < process->num_elf_phdrs; i++, phdr++) {
+            if (phdr->p_type == PT_PHDR) {
+                phdr->p_type = PT_NULL;
+            }
+        }
+
     } else {
         process->entry_point = config.entry_point;
         process->sysinfo = config.sysinfo;

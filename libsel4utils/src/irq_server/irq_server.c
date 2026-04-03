@@ -148,6 +148,7 @@ static void _irq_thread_entry(irq_server_thread_t *my_thread_info, ps_irq_ops_t 
 thread_id_t irq_server_thread_new(irq_server_t *irq_server, seL4_CPtr provided_ntfn,
                                   seL4_Word usable_mask, thread_id_t id_hint)
 {
+    bool thread_created = false;
     int error;
 
     irq_server_thread_t *new_thread = NULL;
@@ -227,7 +228,7 @@ thread_id_t irq_server_thread_new(irq_server_t *irq_server, seL4_CPtr provided_n
         goto fail;
     }
 
-    bool thread_created = true;
+    thread_created = true;
 
     /* Start the thread */
     error = sel4utils_start_thread(&new_thread->thread, (void *)_irq_thread_entry,
@@ -337,9 +338,14 @@ irq_server_t *irq_server_new(vspace_t *vspace, vka_t *vka, seL4_Word priority,
     irq_server_t *new = NULL;
 
     error = ps_calloc(malloc_ops, 1, sizeof(irq_server_t), (void **) &new);
+    if (error) {
+        ZF_LOGE("Failed to allocate %zu bytes for irq_server", sizeof(irq_server_t));
+        return NULL;
+    }
 
     if (config_set(CONFIG_KERNEL_MCS) && vka_alloc_reply(vka, &(new->reply)) != 0) {
         ZF_LOGE("Failed to allocate reply object");
+        ps_free(malloc_ops, sizeof(irq_server_t), new);
         return NULL;
     }
 
@@ -349,6 +355,8 @@ irq_server_t *irq_server_new(vspace_t *vspace, vka_t *vka, seL4_Word priority,
     error = sel4platsupport_new_irq_ops(&(new->irq_ops), vka, simple, irq_config, malloc_ops);
     if (error) {
         ZF_LOGE("Failed to initialise supporting backend for IRQ server");
+        vka_free_object(vka, &(new->reply));
+        ps_free(malloc_ops, sizeof(irq_server_t), new);
         return NULL;
     }
 

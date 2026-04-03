@@ -268,6 +268,9 @@ static int bootstrap_page_table(vspace_t *vspace)
     data->next_bootstrap_vaddr = VSPACE_RESERVE_START;
     /* Allocate top level paging structure */
     data->top_level = alloc_and_map(vspace, sizeof(vspace_mid_level_t));
+    if (data->top_level == NULL) {
+        return -1;
+    }
 
     /* Try and mark reserved our entire reserve region */
     if (reserve_range(vspace, VSPACE_RESERVE_START, VSPACE_RESERVE_START + VSPACE_RESERVE_SIZE)) {
@@ -395,7 +398,7 @@ int sel4utils_bootstrap_vspace_with_bootinfo(vspace_t *vspace, sel4utils_alloc_d
                                              void *allocated_object_cookie)
 {
     size_t extra_pages = BYTES_TO_4K_PAGES(info->extraLen);
-    uintptr_t extra_base = (uintptr_t)info + PAGE_SIZE_4K;
+    uintptr_t extra_base = (uintptr_t)info + seL4_BootInfoFrameSize;
     void *existing_frames[extra_pages + 3];
     existing_frames[0] = info;
     /* We assume the IPC buffer is less than a page and fits into one page */

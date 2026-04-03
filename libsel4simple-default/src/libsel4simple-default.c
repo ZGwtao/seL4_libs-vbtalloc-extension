@@ -101,6 +101,25 @@ seL4_CPtr simple_default_nth_cap(void *data, int n)
             true_return++;
         }
 #endif
+#ifndef CONFIG_ARM_SMMU
+        /* skip seL4_CapSMMUSIDControl and seL4_CapSMMUCBControl if
+         * SMMU is not supported on this platform */
+        if (true_return >= seL4_CapSMMUSIDControl) {
+            true_return += 2;
+        }
+#endif
+#ifndef CONFIG_KERNEL_MCS
+        /* skip seL4_CapInitThreadSC if MCS is not enabled */
+        if (true_return >= seL4_CapInitThreadSC) {
+            true_return++;
+        }
+#endif
+#ifndef CONFIG_ALLOW_SMC_CALLS
+        /* skip seL4_CapSMC if SMC Calls are not enabled */
+        if (true_return >= seL4_CapSMC) {
+            true_return++;
+        }
+#endif
     } else if (n < shared_frame_range) {
         return bi->sharedFrames.start + (n - SIMPLE_NUM_INIT_CAPS);
     } else if (n < user_img_frame_range) {
@@ -211,7 +230,7 @@ ssize_t simple_default_get_extended_bootinfo_size(void *data, seL4_Word type)
     seL4_BootInfo *bi = data;
 
     /* start of the extended bootinfo is defined to be 4K from the start of regular bootinfo */
-    uintptr_t cur = (uintptr_t)bi + PAGE_SIZE_4K;
+    uintptr_t cur = (uintptr_t)bi + seL4_BootInfoFrameSize;
     uintptr_t end = cur + bi->extraLen;
     while (cur < end) {
         seL4_BootInfoHeader *header = (seL4_BootInfoHeader *)cur;
@@ -233,7 +252,7 @@ ssize_t simple_default_get_extended_bootinfo(void *data, seL4_Word type, void *d
         return -1;
     }
     /* start of the extended bootinfo is defined to be 4K from the start of regular bootinfo */
-    uintptr_t cur = (uintptr_t)bi + PAGE_SIZE_4K;
+    uintptr_t cur = (uintptr_t)bi + seL4_BootInfoFrameSize;
     uintptr_t end = cur + bi->extraLen;
     while (cur < end) {
         seL4_BootInfoHeader *header = (seL4_BootInfoHeader *)cur;

@@ -78,19 +78,15 @@ static FASTFN seL4_Word sel4bench_get_num_counters()
 #ifdef CORTEX_A8
     return 4;
 #else //CORTEX_A8
-    return SEL4BENCH_ARMV7A_PMCR_N(sel4bench_private_read_pmcr());
+    // PMCR is always enabled
+    return SEL4BENCH_ARMV7A_PMCR_N(sel4bench_private_read_pmcr()) + 1;
 #endif //CORTEX_A8
 }
 
 static FASTFN ccnt_t sel4bench_get_cycle_count()
 {
     ccnt_t val;
-    uint32_t enable_word = sel4bench_private_read_cntens(); //store running state
-
-    sel4bench_private_write_cntenc(BIT(SEL4BENCH_ARMV7A_COUNTER_CCNT)); //stop CCNT
     SEL4BENCH_READ_CCNT(val); //read its value
-    sel4bench_private_write_cntens(enable_word); //start it again if it was running
-
     return val;
 }
 

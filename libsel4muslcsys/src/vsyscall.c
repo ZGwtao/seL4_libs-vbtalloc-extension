@@ -138,7 +138,9 @@ static muslcsys_syscall_t syscall_table[MUSLC_NUM_SYSCALLS] = {
     [__NR_read] = sys_read,
     [__NR_ioctl] = sys_ioctl,
     [__NR_prlimit64] = sys_prlimit64,
+#ifdef __NR_lseek
     [__NR_lseek] = sys_lseek,
+#endif
 #ifdef __NR__llseek
     [__NR__llseek] = sys__llseek,
 #endif
@@ -271,6 +273,7 @@ long sel4_vsyscall(long sysnum, ...)
         int index = find_sparse_syscall(sysnum);
         if (index < 0) {
             debug_error(sysnum);
+            va_end(al);
             return -ENOSYS;
         }
         syscall = sparse_syscall_table[index].syscall;
@@ -280,6 +283,7 @@ long sel4_vsyscall(long sysnum, ...)
     /* Check a syscall is implemented there */
     if (!syscall) {
         debug_error(sysnum);
+        va_end(al);
         return -ENOSYS;
     }
     /* Call it */

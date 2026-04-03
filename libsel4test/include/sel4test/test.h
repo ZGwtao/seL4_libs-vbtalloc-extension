@@ -56,6 +56,9 @@ struct env {
     seL4_CPtr asid_pool;
     seL4_CPtr asid_ctrl;
     seL4_CPtr sched_ctrl;
+#ifdef CONFIG_ALLOW_SMC_CALLS
+    seL4_CPtr smc;
+#endif /* CONFIG_ALLOW_SMC_CALLS */
 #ifdef CONFIG_IOMMU
     seL4_CPtr io_space;
 #endif /* CONFIG_IOMMU */
@@ -93,10 +96,17 @@ typedef struct test_type {
     test_result_t (*run_test)(struct testcase *test, uintptr_t e);
 } ALIGN(32) test_type_t;
 
+#if defined(__has_attribute) && __has_attribute(retain) && defined(__clang__)
+#define ATTR_USED_RETAIN __attribute__((used,retain))
+#else
+#define ATTR_USED_RETAIN __attribute__((used))
+#endif
+
 /* Declare a test type.
  * For now, we put the test types in a separate elf section. */
 #define DEFINE_TEST_TYPE(_name, _id, _set_up_test_type, _tear_down_test_type, _set_up, _tear_down, _run_test) \
-    __attribute__((used)) __attribute__((section("_test_type"))) struct test_type TEST_TYPE_ ##_name = { \
+    ATTR_USED_RETAIN __attribute__((section("_test_type"))) \
+    struct test_type TEST_TYPE_ ##_name = { \
     .name = #_name, \
     .id = _id, \
     .set_up_test_type = _set_up_test_type, \
@@ -131,7 +141,8 @@ typedef struct testcase ALIGN(sizeof(struct testcase)) testcase_t;
  * that it is accepted by C++ compilers.
  */
 #define DEFINE_TEST_WITH_TYPE(_name, _description, _function, _test_type, _enabled) \
-    __attribute__((used)) __attribute__((section("_test_case"))) struct testcase TEST_ ## _name = { \
+    ATTR_USED_RETAIN __attribute__((section("_test_case"))) \
+    struct testcase TEST_ ## _name = { \
     #_name, \
     _description, \
     (test_fn)_function, \
@@ -229,14 +240,9 @@ static inline void print_error_in_ipc(seL4_Error e)
     do { \
          typeof (a) _a = (a); \
          typeof (b) _b = (b); \
-         if (sizeof(_a) != sizeof(_b)) { \
-             int len = snprintf(NULL, 0, "%s (size %zu) != %s (size %zu), use of test_eq incorrect", #a,\
-                     sizeof(_a), #b, sizeof(_b)) + 1;\
-             char buffer[len];\
-             snprintf(buffer, len, "%s (size %zu) != %s (size %zu), use of test_eq incorrect", #a, sizeof(_a),\
-                     #b, sizeof(_b));\
-             _test_error(buffer, __FILE__, __LINE__);\
-         } else if (TYPES_COMPATIBLE(typeof(_a), int)) {\
+         _Static_assert(sizeof(_a) == sizeof(_b), \
+                        "sizeof(" #a ") does not match sizeof(" #b "), use of test_eq incorrect"); \
+         if (TYPES_COMPATIBLE(typeof(_a), int)) {\
              test_op_type(_a, _b, op, "%d", a, b, int); \
          } else if (TYPES_COMPATIBLE(typeof(_a), long)) {\
              test_op_type(_a, _b, op, "%ld", a, b, long); \
@@ -250,10 +256,12 @@ static inline void print_error_in_ipc(seL4_Error e)
              test_op_type(_a, _b, op, "%llu", a, b, unsigned long long); \
          } else if (TYPES_COMPATIBLE(typeof(_a), char)) {\
              test_op_type(_a, _b, op, "%c", a, b, char); \
+         } else if (TYPES_COMPATIBLE(typeof(_a), unsigned char)) {\
+             test_op_type(_a, _b, op, "%c", a, b, unsigned char); \
          } else if (TYPES_COMPATIBLE(typeof(_a), uintptr_t)) {\
              test_op_type(_a, _b, op, "0x%" PRIxPTR, a, b, uintptr_t);\
          } else { \
-             _test_error("Cannot use test_op on this type", __FILE__, __LINE__);\
+             _test_abort("Cannot use test_op on this type", __FILE__, __LINE__);\
          }\
     } while (0)
 
@@ -291,4 +299,3 @@ static inline void print_error_in_ipc(seL4_Error e)
 #define test_strleq(a, b) test_strop(a, b, <=)
 
 env_t sel4test_get_env(void);
-
